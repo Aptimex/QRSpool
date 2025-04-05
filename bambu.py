@@ -3,127 +3,48 @@
 import time
 import bambulabs_api as bl
 import json
+import os
+#import importlib
+from copy import deepcopy
 
 #local files
 from bambu_config import IP, SERIAL, ACCESS_CODE
 
-'''
+
+# ======== Begin Monkey Patch ========
+# This actually doesn't seem to patch internal class usage... 
+LibraryFilament = bl.Filament
 class AnyFilament(bl.AMSFilamentSettings):
-    """docstring for AnyFilament."""
+    """Changes the behavior of the Filament library class to allow unknown/new filaments (tray_info_idx codes) to be set. 
+    Does not validate manually-set the filament codes against a known list, but printer should just safely/silently ignore it if it's not real"""
 
-    def __init__(self):
-        super(AnyFilament, self).__init__()
-    
-    @classmethod
-    def _missing_(cls, value: Any):
-        if isinstance(value, str):
-            for filament in cls:
-                if value == filament.name:
-                    return filament
-
-        raise ValueError(f"Filament {value} not found")
-    
-    
-bl.Filament = AnyFilament
-'''
-
-# Monkey patch to allow arbitrary AMSFilamentSettings objects to be sent to the AMS
-def sfp(
-        self,
-        color: str,
-        filament: str | bl.AMSFilamentSettings,
-        ams_id: int = 255,
-        tray_id: int = 254,
-    ) -> bool:
-        """
-        Set the filament of the printer.
-
-        Parameters
-        ----------
-        color : str
-            The color of the filament.
-        filament : str | AMSFilamentSettings
-            The filament to be set.
-        ams_id : int
-            The index of the AMS, by default the external spool 255.
-        tray_id : int
-            The index of the spool/tray in the ams, by default the external
-            spool 254.
-
-        Returns
-        -------
-        bool
-            True if the filament is set successfully.
-        """
-        assert len(color) == 6, "Color must be a 6 character hex code"
-        if isinstance(filament, str) or isinstance(filament, bl.AMSFilamentSettings):  # type: ignore # noqa: E501
-            if isinstance(filament, str):
-                filament = bl.Filament(filament)
+    def __init__(self, filament: str | bl.AMSFilamentSettings):
+        # Support lookup by standard filament names known to the library
+        if type(filament) is str:
+            name = filament 
+            print(name)
+            
+            # This will throw an exception if the type is unknown, just like the library
+            knownF = LibraryFilament(name)
+            
+            super(AnyFilament, self).__init__(
+                knownF.tray_info_idx,
+                knownF.nozzle_temp_min,
+                knownF.nozzle_temp_max,
+                knownF.tray_type,
+                )
+        
+        # Support creating your own arbitrary AMSFilamentSettings so newer codes can be used
         else:
-            raise ValueError(
-                "Filament must be a string or AMSFilamentSettings object")
-        return self.mqtt_client.set_printer_filament(
-            filament,
-            color,
-            ams_id=ams_id,
-            tray_id=tray_id)
-bl.Printer.set_filament_printer = sfp
-
-def spf(
-    self,
-    filament_material: bl.AMSFilamentSettings,
-    colour: str,
-    ams_id: int = 255,
-    tray_id: int = 254,
-) -> bool:
-    """
-    Set the printer filament manually fed into the printer
-
-    Args:
-        filament_material (Filament): filament material to set.
-        colour (str): colour of the filament.
-        ams_id (int): ams id. Default to external filament spool: 255.
-        tray_id (int): tray id. Default to external filament spool: 254.
-
-    Returns:
-        bool: success of setting the printer filament
-    """
-    assert len(colour) == 6, "Colour must be a 6 character hex string"
-    print(f"Setting type to {filament_material.tray_type} via ID {filament_material.tray_info_idx}")
-
-    return self.__publish_command(
-        {
-            "print": {
-                "command": "ams_filament_setting",
-                "ams_id": ams_id,
-                "tray_id": tray_id,
-                "tray_info_idx": filament_material.tray_info_idx,
-                "tray_color": f"{colour.upper()}FF",
-                "nozzle_temp_min": filament_material.nozzle_temp_min,
-                "nozzle_temp_max": filament_material.nozzle_temp_max,
-                "tray_type": filament_material.tray_type
-            }
-        }
-    )
-
-def pc(self, payload: dict[any, any]) -> bool:
-    """
-    Generate a command payload and publish it to the MQTT server
-
-    Args:
-        payload (dict[Any, Any]): command to send to the printer
-    """
-    if self._client.is_connected() is False:
-        logging.error("Not connected to the MQTT server")
-        return False
-
-    command = self._client.publish(self.command_topic, json.dumps(payload))
-    #logging.debug(f"Published command: {payload}")
-    command.wait_for_publish()
-    return command.is_published()
-
-bl.PrinterMQTTClient.__publish_command = pc
-bl.PrinterMQTTClient.set_printer_filament = spf
+            super(AnyFilament, self).__init__(
+                filament.tray_info_idx,
+                filament.nozzle_temp_min,
+                filament.nozzle_temp_max,
+                filament.tray_type,
+                )
+bl.Filament = AnyFilament
+#importlib.reload(bl)
+# ======== End Monkey Patch ========
 
 
 def listFilamentTrays(ams: bl.AMS):
@@ -134,16 +55,29 @@ def listFilamentTrays(ams: bl.AMS):
     return trays
 
 # tray.filament() will fail if the filament is a newer one not in the bambulabs_api code yet
-# This does the same thing as that function but allows unknown values to be used, rather than throwing an exception. 
+# This does the same thing as that function but allows unknown values to be returned, rather than throwing an exception. 
 def getTrayFilament(tray: bl.FilamentTray):
+    
+    # Somehow the nozzle temp values get returned as a string even though they should be integers. 
+    # Lots of other things silently fail if they are not cast back to int
     return bl.AMSFilamentSettings(
         tray.tray_info_idx,
-        tray.nozzle_temp_min,
-        tray.nozzle_temp_max,
+        int(tray.nozzle_temp_min),
+        int(tray.nozzle_temp_max),
         tray.tray_type
     )
 
 def main():
+    '''
+    print(bl.Filament)
+    test = bl.AMSFilamentSettings("GFG02", 220, 270, "PETG")
+    test2 = bl.Filament(test)
+    print(test2)
+    test3 = bl.Filament("PLA")
+    print(test3)
+    return
+    '''
+    
     print('Starting bambulabs_api example')
     print('Connecting to BambuLab 3D printer')
     print(f'IP: {IP}')
@@ -191,24 +125,25 @@ def main():
     currFColor = tray.tray_color[:-2] #The extra two hex characters are probably alpha values
     print(currentFilament)
     print(currFColor)
-    test = bl.AMSFilamentSettings("GFG02", 220, 270, "PETG")
+    test = bl.AMSFilamentSettings("GFG02", 220, 270, "PETG") #PETG-HF
+    test2 = bl.AMSFilamentSettings("GFA05", 192, 240, "PLA") #PLA-Silk
     
     #result = printer.set_filament_printer("7c4b00", "PLA", amsID, trayID)
-    result = printer.set_filament_printer("0c4b00", test, amsID, trayID)
+    result = printer.set_filament_printer("0c4b00", test2, amsID, trayID)
     if result:
         print("Success!")
     else:
         print("Failed")
     
-    '''
-    time.sleep(12)
+    
+    time.sleep(5)
     result = printer.set_filament_printer(currFColor, currentFilament, amsID, trayID)
     #result = printer.set_filament_printer("000000", "PETG", amsID, trayID)
+    #result = printer.set_filament_printer("38CC0A", test2, amsID, trayID)
     if result:
         print("Success!")
     else:
         print("Failed")
-    '''
 
     # Turn the light off
     #printer.turn_light_off()

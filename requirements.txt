@@ -1,0 +1,3 @@
+bambulabs_api @ git+https://github.com/Aptimex/bambulabs_api@70a459f0314a83403c2dc40d2596ffcba874b360
+paho-mqtt==2.1.0
+pillow==11.1.0
