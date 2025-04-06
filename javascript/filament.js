@@ -1,82 +1,3 @@
-const BambuColorsTest = {
-    WHITE: Symbol("FFFFFF"),
-    YELLOW: Symbol("FFF144"),
-    YELLOW_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("0ACC38"),
-    GREEN: Symbol("057748"),
-    BLUE_GREY: Symbol("0D6284"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    LIME_GREEN: Symbol("DCF478"),
-    
-};
-Object.freeze(BambuColorsTest);
-
-/*
-https://github.com/bambulab/BambuStudio/blob/733531b1c68e755da991c9503a09c2206c2e4984/src/slic3r/GUI/AMSMaterialsSetting.cpp#L1398-L1425
-0xFFFFFF 0xfff144 0xDCF478 0x0ACC38 0x057748 0x0d6284 0x0EE2A0 0x76D9F4 0x46a8f9 0x2850E0 0x443089 0xA03CF7 0xF330F9 0xD4B1DD 0xf95d73 0xf72323 0x7c4b00 0xf98c36 0xfcecd6 0xD3C5A3 0xAF7933 0x898989 0xBCBCBC 0x161616
-*/
-const BambuColors = ["FFFFFF", "fff144", "DCF478", "0ACC38", "057748", "0d6284", "0EE2A0", "76D9F4", "46a8f9", "2850E0", "443089", "A03CF7", "F330F9", "D4B1DD", "f95d73", "f72323", "7c4b00", "f98c36", "fcecd6", "D3C5A3", "AF7933", "898989", "BCBCBC", "161616"]
-
-// Find the color value that has the smallest combined difference between all three RGB values
-// IDK if this is the best approach, but better than nothing
-function closestBambuColor(colorHex) {
-    if (colorHex.length != 6) {
-        return "";
-    }
-    
-    let x = "0x" + colorHex[0] + colorHex[1];
-    let y = "0x" + colorHex[4] + colorHex[3];
-    let z = "0x" + colorHex[4] + colorHex[5];
-    let r = Number(x);
-    let g = Number(y);
-    let b = Number(z);
-    
-    let diff = [];
-    
-    BambuColors.forEach((ch, i) => {
-        let x1 = "0x" + ch[0] + ch[1];
-        let y1 = "0x" + ch[4] + ch[3];
-        let z1 = "0x" + ch[4] + ch[5];
-        
-        let r2 = Number(x1);
-        let g2 = Number(y1);
-        let b2 = Number(z1);
-        
-        let rd = Math.abs(r2-r);
-        let gd = Math.abs(g2-g);
-        let bd = Math.abs(b2-b);
-        diff.push(rd+gd+bd);
-    });
-    
-    //console.log(diff);
-    
-    let best = 256*3;
-    let bestI = 0;
-    diff.forEach((d, i) => {
-        if (d < best) {
-            best = d;
-            bestI = i;
-        }
-    });
-    
-    return BambuColors[bestI];
-}
-
 class filamentOpenTag {
     constructor() {
         this.tagVersion = "";   //5
@@ -119,11 +40,13 @@ class filamentOpenTag {
 
 // Example QR data format: openspool1.0|PLA|0a2b3c|SomeBrand|210|230
 class filamentOpenSpool {
-    static protocol = "openspool";
+    //static protocol = "openspool";
+    static protocol = "OS";
     static version = "1.0";
     static delim = "|";
     
     constructor(type, colorHex, brand, minTemp, maxTemp) {
+        this.displayProtocol = "" + filamentOpenSpool.protocol + filamentOpenSpool.version;
         this.type = type;
         this.colorHex = colorHex;
         this.brand = brand;
@@ -135,22 +58,25 @@ class filamentOpenSpool {
         return new filamentOpenSpool("", "", "", "", "");
     }
     
-    isValidFormat(data) {
-        header = this.protocol + this.version + this.delim;
-        headerLen = header.length;
+    static isValidFormat(data) {
+        let header = "" + filamentOpenSpool.protocol + filamentOpenSpool.version + filamentOpenSpool.delim;
+        let headerLen = header.length;
         if (data.substring(0,headerLen) == header) {
             return true;
         }
+        //console.log(data.substring(0,headerLen) + " vs " + header )
         return false;
     }
     
     parseDataString(data) {
-        if (! this.isValidFormat(data)) {
-            return null;
+        if (! filamentOpenSpool.isValidFormat(data)) {
+            //console.log("Invalid data format")
+            return false;
         }
         
-        let fields = data.split(this.delim);
+        let fields = data.split(filamentOpenSpool.delim);
         try {
+            this.displayProtocol = fields[0];
             this.type = fields[1];
             this.colorHex = fields[2];
             this.brand = fields[3];
@@ -159,6 +85,7 @@ class filamentOpenSpool {
         } catch (e) {
             console.log(e);
         }
+        return true
     }
     
     // Return the data that should be placed in a QR code
@@ -173,7 +100,54 @@ class filamentOpenSpool {
     }
 }
 
-function parseDataString(data) {
+function parseOpenSpool(data) {
+    /*
+    let fields = data.split("|")
+    if (fields.length < 1) {
+        return null;
+    }
+    if (fields[0] != "OS1.0") {
+        return null;
+    }
+    */
+    
+    let tag = new filamentOpenSpool();
+    result = tag.parseDataString(data);
+    if (! result) {
+        return null;
+    }
+    
+    return tag;
+    
+    /*
+    
+    fields.forEach((f, i) => {
+        if (i == 1) {
+            tag.type = f;
+            continue;
+        }
+        if (i == 2) {
+            tag.colorHex = f;
+            continue;
+        }
+        if (i == 3) {
+            tag.brand = f;
+            continue;
+        }
+        if (i == 4) {
+            tag.minTemp = f;
+            continue;
+        }
+        if (i == 5) {
+            tag.maxTemp = f;
+            continue;
+        }
+    });
+    return tag;
+    */
+}
+
+function parseOpenTag(data) {
     let tmpData = data;
     let tag = new filamentOpenTag();
     let i = 0;
@@ -252,7 +226,7 @@ function parseDataString(data) {
     return tag;
 }
 
-function displayTag(tag) {
+function displayOpenTag(tag) {
     document.getElementById("tagVersion").innerText = tag.tagVersion;
     document.getElementById("manufacturer").innerText = tag.manufacturer;
     document.getElementById("material").innerText = tag.material;
@@ -265,4 +239,15 @@ function displayTag(tag) {
     document.getElementById("density").innerText = tag.density;
     
     document.getElementById("colorHex").style.backgroundColor = "#" + tag.colorHex;
+}
+
+function displayOSTag(tag) {
+    document.getElementById("protocol").innerText = ""  + tag.displayProtocol;
+    document.getElementById("type").innerText = tag.type;
+    document.getElementById("colorHex").innerText = tag.colorHex;
+    document.getElementById("brand").innerText = tag.brand;
+    document.getElementById("minTemp").innerText = tag.minTemp;
+    document.getElementById("maxTemp").innerText = tag.maxTemp;
+    
+    document.getElementById("colorHexDisplay").style.backgroundColor = "#" + tag.colorHex;
 }

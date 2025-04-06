@@ -7,14 +7,19 @@
   <link href="https://fonts.googleapis.com/css?family=Ropa+Sans" rel="stylesheet">
   <style>
     body {
-      font-family: 'Ropa Sans', sans-serif;
+      font-family: 'Arial', sans-serif;
+      font-size: 2em;
       color: #333;
       max-width: 640px;
       margin: 0 auto;
       position: relative;
     }
+    table {
+        font-size: 1em;
+    }
 
     #githubLink {
+      font-size: .5em;
       position: absolute;
       right: 0;
       top: 12px;
@@ -40,7 +45,7 @@
       margin-top: 20px;
       background: #eee;
       padding: 10px;
-      padding-bottom: 0;
+      padding-bottom: 5px;
     }
 
     #output div {
@@ -53,6 +58,7 @@
     }
   </style>
 </head>
+
 <body>
   <h1>FilamentQR</h1>
   <a id="githubLink" href="https://github.com/cozmo/jsQR">Modified from the jsQR demo</a>
@@ -72,34 +78,25 @@
   <div class="">
       <table>
           <tr>
-              <th>Tag Version</th><td id="tagVersion"></td>
+              <th>Protocol</th><td id="protocol"></td>
           </tr>
           <tr>
-              <th>Manufacturer</th><td id="manufacturer"></td>
+              <th>Type</th><td id="type"></td>
           </tr>
           <tr>
-              <th>Material Name</th><td id="material"></td>
+              <th>Color (Hex)</th><td> 
+                  <span id="colorHex"></span> 
+                  (<span id="colorHexDisplay">..........</span>)
+              </td>
           </tr>
           <tr>
-              <th>Color Hex</th><td id="colorHex"></td>
+              <th>Brand</th><td id="brand"></td>
           </tr>
           <tr>
-              <th>Color Name</th><td id="colorName"></td>
+              <th>Min Temp (C)</th><td id="minTemp"></td>
           </tr>
           <tr>
-              <th>Diameter (µm)</th><td id="diameter"></td>
-          </tr>
-          <tr>
-              <th>Weight (g)</th><td id="weight"></td>
-          </tr>
-          <tr>
-              <th>Print Temp (C)</th><td id="printTemp"></td>
-          </tr>
-          <tr>
-              <th>Bed Temp (C)</th><td id="bedTemp"></td>
-          </tr>
-          <tr>
-              <th>Density (µg)</th><td id="density"></td>
+              <th>Max Temp (C)</th><td id="maxTemp"></td>
           </tr>
       </table>
   </div>
@@ -173,10 +170,16 @@
     }
     
     function handleData(data) {
-        outputMessageP.hidden = true;
-        outputDataP.innerText = data;
-        let tag = parseDataString(data);
-        displayTag(tag);
+        let tag = parseOpenSpool(data);
+        if (tag != null) {
+            outputMessageP.hidden = true;
+            outputDataP.innerText = data;
+            displayOSTag(tag);
+        }
+        else {
+            console.log("Invalid data read: " + data)
+        }
+        
     }
   </script>
 </body>

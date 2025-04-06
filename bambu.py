@@ -10,7 +10,22 @@ from copy import deepcopy
 #local files
 from bambu_config import IP, SERIAL, ACCESS_CODE
 
+def getKnownFilaments(path = "./bambu-ams-codes.json"):
+    with open(path, "r") as f:
+        codes = json.loads(f.read())
+    print(f"Loaded {len(codes)} filament codes")
+    return codes
+CODES = getKnownFilaments()
+PRINTER = bl.Printer(IP, ACCESS_CODE, SERIAL)
 
+def connect():
+    # Connect to the BambuLab 3D printer
+    PRINTER.connect()
+
+def disconnect():
+    PRINTER.disconnect()
+
+'''
 # ======== Begin Monkey Patch ========
 # This actually doesn't seem to patch internal class usage... 
 LibraryFilament = bl.Filament
@@ -45,7 +60,7 @@ class AnyFilament(bl.AMSFilamentSettings):
 bl.Filament = AnyFilament
 #importlib.reload(bl)
 # ======== End Monkey Patch ========
-
+'''
 
 def listFilamentTrays(ams: bl.AMS):
     trays = []
@@ -53,7 +68,41 @@ def listFilamentTrays(ams: bl.AMS):
         trays.append(ft)
     
     return trays
+        
 
+# Returns a list of AMS units indexed by their index number
+# Each AMS has a list of trays (spool slots), also indexed by their index number
+def getAMSInfo():
+    if not PRINTER.mqtt_client_connected():
+        connect()
+    amsh = PRINTER.ams_hub()
+    #trays: dict[int, bl.FilamentTray] = {}
+    trays = []
+    #trayIDs = []
+    
+    try:
+        for ams in amsh:
+            trays.append(ams.filament_trays)
+            '''
+            for trayID in ams.filament_trays.keys():
+                if trayID in trays.keys():
+                    return {"error": "Duplicate tray ID found"}
+                trays[trayID] = ams.filament_trays[trayID]
+            '''
+            
+            '''
+            ts = ams.filament_trays
+            for id in ts.keys():
+                trays.append(ts[id])
+                trayIDs.append(id)
+            '''
+    
+    except Exception as e:
+        pass
+    
+    return trays
+
+'''
 # tray.filament() will fail if the filament is a newer one not in the bambulabs_api code yet
 # This does the same thing as that function but allows unknown values to be returned, rather than throwing an exception. 
 def getTrayFilament(tray: bl.FilamentTray):
@@ -66,6 +115,92 @@ def getTrayFilament(tray: bl.FilamentTray):
         int(tray.nozzle_temp_max),
         tray.tray_type
     )
+'''
+
+def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0):
+    code = filamentToCode(brand, fType)
+    if not code:
+        return False, "Unable to match brand and type with known Bambu codes"
+    
+    newFilament = bl.AMSFilamentSettings(code, minTemp, maxTemp, fType)
+    try:
+        t = getAMSTrays()
+        x = t[amsID][trayID]
+    except Exception as e:
+        return False, f"Printer does not seem to have an AMS #{amsID} with Tray #{trayID}: {e}"
+    
+    result = PRINTER.set_filament_printer(colorHex, newFilament, amsID, trayID)
+    if result:
+        return True, ""
+    else:
+        return False, "Printer rejected request for unknown reasons"
+
+def checkFilamentPatch():
+    test = bl.AMSFilamentSettings("GFG02", 220, 270, "PETG") #PETG-HF
+    try:
+        f = bl.Filament(test)
+    except ValueError as e:
+        print("bambulabs-api library not patched, not all filament types will be supported")
+        print("See the README for more info")
+
+# Combine manufacturer and type, normalize spaces, convert to lowercase, and compare
+# If an exact match isn't found, change the manufacturer to "generic" and look again
+# If that's not found, check if the type is a known code and use that directly
+# Otherwise return None
+def filamentToCode(fManufacturer: str, fType: str):
+    lookup = ("" + fManufacturer.strip() + " " + fType.strip()).lower()
+    lookupGeneric = ("Generic " + fType.strip()).lower()
+    lookupByCode = fType.strip().lower()
+    backupCode = ""
+    
+    knownTypes = list(CODES.keys())
+    
+    for t in knownTypes:
+        if lookup == t.lower():
+            return CODES[t]
+        if lookupGeneric == t.lower():
+            # This will be returned if an exact match isn't found
+            backupCode = CODES[t]
+    
+    if backupCode != "":
+        return backupCode
+    
+    knownCodes = list(CODES.values())
+    for c in knownCodes:
+        if lookupByCode == c.lower():
+            return c
+    
+    return None
+    
+
+# Pass in an instance of a connected printer
+def testRun():
+    if len(CODES) < 1:
+        print("No filament codes loaded")
+        return
+    
+    m1 = "Bambu     "
+    n1 = "TPU 95A HF    "
+    c = filamentToCode(m1, n1)
+    print(f"{c}- {m1} {n1}")
+    
+    m2 = " NoExists   "
+    n2 = "ABS    "
+    c = filamentToCode(m2, n2)
+    print(f"{c}- {m2} {n2}")
+    
+    m3 = " NoExists   "
+    n3 = "GFG02    "
+    c = filamentToCode(m3, n3)
+    print(f"{c}- {m3} {n3}")
+    
+    m4 = " NoExists   "
+    n4 = "NoExists    "
+    c = filamentToCode(m4, n4)
+    print(f"{c}- {m4} {n4}")
+    
+    
+    
 
 def main():
     '''
@@ -77,6 +212,9 @@ def main():
     print(test3)
     return
     '''
+    checkFilamentPatch()
+    #testRun()
+    #return
     
     print('Starting bambulabs_api example')
     print('Connecting to BambuLab 3D printer')
@@ -111,7 +249,7 @@ def main():
             return
     
     amsTrays = []
-    for ams in amss:
+    for i, ams in enumerate(amss):
         trays = listFilamentTrays(ams)
         print(f"AMS #{i} has the following trays: {trays}")
         for t in trays:
@@ -121,12 +259,13 @@ def main():
     trayID = 1
     
     tray = amsh[amsID][trayID]
-    currentFilament = getTrayFilament(tray)
-    currFColor = tray.tray_color[:-2] #The extra two hex characters are probably alpha values
+    #currentFilament = getTrayFilament(tray)
+    currentFilament = tray.filament
+    currFColor = tray.tray_color[:-2] #The extra two hex characters are probably unused alpha values
     print(currentFilament)
     print(currFColor)
     test = bl.AMSFilamentSettings("GFG02", 220, 270, "PETG") #PETG-HF
-    test2 = bl.AMSFilamentSettings("GFA05", 192, 240, "PLA") #PLA-Silk
+    test2 = bl.AMSFilamentSettings("GFA05", 192, 240, "PETG") #PLA-Silk
     
     #result = printer.set_filament_printer("7c4b00", "PLA", amsID, trayID)
     result = printer.set_filament_printer("0c4b00", test2, amsID, trayID)
