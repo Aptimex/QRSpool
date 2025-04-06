@@ -56,8 +56,8 @@ def hello_world():
 @app.route("/amsinfo")
 def getAMSInfo():
     connect()
-    amsh = bambu.getAMSInfo()
-    return jsonify(amsh)
+    p = bambu.getAMSInfo()
+    return jsonify(p)
     
     
 

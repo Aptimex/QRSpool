@@ -3,6 +3,7 @@
 import time
 import bambulabs_api as bl
 import json
+import jsonpickle
 import os
 #import importlib
 from copy import deepcopy
@@ -62,6 +63,46 @@ bl.Filament = AnyFilament
 # ======== End Monkey Patch ========
 '''
 
+'''
+class Slot(bl.FilamentTray):
+    """docstring for Slot."""
+
+    def __init__(self, id):
+        super(Slot, self).__init__()
+        self.object = "slot";
+        self.id = id;
+
+class AMS(bl.AMS):
+    """docstring for AMS."""
+
+    def __init__(self, id):
+        super(AMS, self).__init__("", "")
+        self.object = "ams"
+        self.id = id;
+        #self.slots = [];
+    
+    # def addSlot(self, slot: Slot):
+    #    self.slots.append(slot)
+    
+    #@cached_property
+    def slots(self):
+        ret = []
+        for id, tray in self.filament_trays:
+            s = Slot(tray)
+            s.id = id
+            ret.append(s)
+        return ret
+
+class Printer(object):
+    """docstring for Printer."""
+
+    def __init__(self):
+        self.AMSs = []
+    
+    def addAMS(self, ams: AMS):
+        self.AMSs.append(ams)
+'''
+
 def listFilamentTrays(ams: bl.AMS):
     trays = []
     for ft in ams.filament_trays.keys():
@@ -76,13 +117,31 @@ def getAMSInfo():
     if not PRINTER.mqtt_client_connected():
         connect()
     amsh = PRINTER.ams_hub()
-    #trays: dict[int, bl.FilamentTray] = {}
-    trays = []
-    #trayIDs = []
+    #trays = []
     
+    p = []
+    for id, ams in amsh.ams_hub.items():
+        a = {}
+        a["object"] = "ams"
+        a["id"] = id
+        
+        slots = []
+        for id, tray in ams.filament_trays.items():
+            x = tray.__dict__.copy()
+            x["object"] = "slot"
+            x["id"] = id
+            slots.append(x)
+        a["slots"] = slots
+        p.append(a)
+    
+    
+    """
     try:
         for ams in amsh:
+            p.addAMS(ams)
             trays.append(ams.filament_trays)
+            
+            
             '''
             for trayID in ams.filament_trays.keys():
                 if trayID in trays.keys():
@@ -99,8 +158,11 @@ def getAMSInfo():
     
     except Exception as e:
         pass
+    """
     
-    return trays
+    #return trays
+    #return jsonpickle.encode(p, keys=True, max_depth=10, indent=1, include_properties=True)
+    return p
 
 '''
 # tray.filament() will fail if the filament is a newer one not in the bambulabs_api code yet
