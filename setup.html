@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+    <head>
+        <meta charset="utf-8">
+        <script src="javascript/server.js"></script>
+        <title>Setup</title>
+        <style media="screen">
+            body {
+                font-size: 2em;
+            }
+            input, button {
+                font-size: 1em;
+            }
+            pre {
+                background-color: whitesmoke;
+            }
+        </style>
+    </head>
+    
+    <body>
+        <h1>Configure Server Connection</h1>
+        <div class="">
+            <p>Backend Server Location: </p><input type="text" name="serverLoc" id="serverLoc", size=75, placeholder="https://example.com:4443">
+        </div>
+        <button type="button" name="save", onclick="setServer(document.getElementById('serverLoc').value)">Save </button>
+        <button type="button" name="clear", onclick="clearServer(); document.getElementById('serverLoc').value=''">Clear </button>
+        
+        <div class="">
+            <p>This should be the full URL of your local server that handles communication with your printer.</p>
+            <p>If this site is using HTTPS then the the server site must be also (self-signed cert is usually fine)</p>
+            <p>This value will be saved to your device's local storage.</p>
+        </div>
+        <hr>
+        <br>
+        
+        <div class="">
+            <button type="button" name="validate", onclick="validateServer()">Validate Server</button>
+            <p>Attempt to connect to the server and request info about the AMS slots, which will be displayed below if succesful. </p> 
+            <div class="">
+                <pre id="validateResult"></pre>
+            </div>
+        </div>
+    </body>
+    
+    <script type="text/javascript">
+        let s = getServer();
+        if (s != null && s.length > 0) {
+            document.getElementById('serverLoc').value = s;
+        } else {
+            document.getElementById('serverLoc').value = "";
+        }
+        
+        function validateServer() {
+            document.getElementById('validateResult').innerText = "Querying server, please wait...";
+            amsinfo().then(r => document.getElementById('validateResult').innerText = r);
+        }
+    </script>
+</html>

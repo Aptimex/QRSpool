@@ -1,10 +1,13 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS, cross_origin
 import json
 import bambu
 import time
 from threading import Timer
 
 app = Flask(__name__)
+CORS(app) # allow CORS for all domains on all routes.
+# CORS(app, origins=["http://localhost:3000"]) # Allow CORS from specific domains for better security
 
 CONNECTED = False
 T: Timer = None
@@ -51,9 +54,10 @@ class FilamentData(object):
 
 @app.route("/")
 def hello_world():
-    return "<p>Hello, World!</p>"
+    return "<p>Server Up</p>"
 
 @app.route("/amsinfo")
+#@cross_origin()
 def getAMSInfo():
     connect()
     p = bambu.getAMSInfo()
@@ -62,6 +66,7 @@ def getAMSInfo():
     
 
 @app.route("/setFilament/<amsIndex>/<trayIndex>/", methods=['PUT', 'POST'])
+#@cross_origin()
 def setFilament(amsIndex, trayIndex):
     '''
     expectedKeys = ["type", "brand", "colorHex"]
@@ -91,7 +96,9 @@ def setFilament(amsIndex, trayIndex):
     connect()
     bambu.setFilament(amsIndex, trayIndex, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp)
     
-    
+if __name__ == '__main__':
+    context = ('cert.pem', 'key.pem')#certificate and key files
+    app.run(debug=True, ssl_context=context)
     
     
     
