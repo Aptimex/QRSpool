@@ -180,14 +180,22 @@ def getTrayFilament(tray: bl.FilamentTray):
 '''
 
 def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0):
+    if not PRINTER.mqtt_client_connected():
+        connect()
+    
+    amsID = int(amsID)
+    trayID = int(trayID)
+    minTemp = int(minTemp)
+    maxTemp = int(maxTemp)
+    
     code = filamentToCode(brand, fType)
     if not code:
         return False, "Unable to match brand and type with known Bambu codes"
     
     newFilament = bl.AMSFilamentSettings(code, minTemp, maxTemp, fType)
     try:
-        t = getAMSTrays()
-        x = t[amsID][trayID]
+        h = PRINTER.ams_hub()
+        x = h[amsID][trayID]
     except Exception as e:
         return False, f"Printer does not seem to have an AMS #{amsID} with Tray #{trayID}: {e}"
     

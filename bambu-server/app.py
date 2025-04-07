@@ -43,9 +43,9 @@ def makeWarning(msg):
     return {"warning": msg}
 
 class FilamentData(object):
-    def __init__(self, fType, brand, colorHex, minTemp = 0, maxTemp = 0):
+    def __init__(self, type, brand, colorHex, minTemp = 0, maxTemp = 0):
         super(FilamentData, self).__init__()
-        self.type = fType
+        self.type = type
         self.brand = brand
         self.colorHex = colorHex
         self.minTemp = minTemp
@@ -65,7 +65,7 @@ def getAMSInfo():
     
     
 
-@app.route("/setFilament/<amsIndex>/<trayIndex>/", methods=['PUT', 'POST'])
+@app.route("/setFilament/<amsIndex>/<trayIndex>", methods=['PUT', 'POST'])
 #@cross_origin()
 def setFilament(amsIndex, trayIndex):
     '''
@@ -91,10 +91,13 @@ def setFilament(amsIndex, trayIndex):
         fData = FilamentData(**data)
     except Exception as e:
         print(e)
-        return makeError(e)
+        return makeError(e.message)
     
     connect()
-    bambu.setFilament(amsIndex, trayIndex, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp)
+    good, result = bambu.setFilament(amsIndex, trayIndex, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp)
+    if not good:
+        return jsonify({"error": result})
+    return jsonify({"success": result})
     
 if __name__ == '__main__':
     context = ('cert.pem', 'key.pem')#certificate and key files

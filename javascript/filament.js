@@ -1,4 +1,4 @@
-class filamentOpenTag {
+class FilamentOpenTag {
     constructor() {
         this.tagVersion = "";   //5
         this.manufacturer = ""; //16
@@ -39,14 +39,14 @@ class filamentOpenTag {
 }
 
 // Example QR data format: openspool1.0|PLA|0a2b3c|SomeBrand|210|230
-class filamentOpenSpool {
+class FilamentOpenSpool {
     //static protocol = "openspool";
     static protocol = "OS";
     static version = "1.0";
     static delim = "|";
     
     constructor(type, colorHex, brand, minTemp, maxTemp) {
-        this.displayProtocol = "" + filamentOpenSpool.protocol + filamentOpenSpool.version;
+        this.displayProtocol = "" + FilamentOpenSpool.protocol + FilamentOpenSpool.version;
         this.type = type;
         this.colorHex = colorHex;
         this.brand = brand;
@@ -55,11 +55,11 @@ class filamentOpenSpool {
     }
     
     static newEmpty() {
-        return new filamentOpenSpool("", "", "", "", "");
+        return new FilamentOpenSpool("", "", "", "", "");
     }
     
     static isValidFormat(data) {
-        let header = "" + filamentOpenSpool.protocol + filamentOpenSpool.version + filamentOpenSpool.delim;
+        let header = "" + FilamentOpenSpool.protocol + FilamentOpenSpool.version + FilamentOpenSpool.delim;
         let headerLen = header.length;
         if (data.substring(0,headerLen) == header) {
             return true;
@@ -69,12 +69,12 @@ class filamentOpenSpool {
     }
     
     parseDataString(data) {
-        if (! filamentOpenSpool.isValidFormat(data)) {
+        if (! FilamentOpenSpool.isValidFormat(data)) {
             //console.log("Invalid data format")
             return false;
         }
         
-        let fields = data.split(filamentOpenSpool.delim);
+        let fields = data.split(FilamentOpenSpool.delim);
         try {
             this.displayProtocol = fields[0];
             this.type = fields[1];
@@ -90,12 +90,13 @@ class filamentOpenSpool {
     
     // Return the data that should be placed in a QR code
     toDataString() {
-        let str = this.protocol + this.version + this.delim;
-        str += this.type + this.delim;
-        str += this.colorHex + this.delim;
-        str += this.brand + this.delim;
-        str += this.minTemp + this.delim;
-        str += this.maxTemp + this.delim;
+        let d = FilamentOpenSpool.delim;
+        let str = "" + FilamentOpenSpool.protocol + FilamentOpenSpool.version + d;
+        str += this.type + d;
+        str += this.colorHex + d;
+        str += this.brand + d;
+        str += this.minTemp + d;
+        str += this.maxTemp;
         return str;
     }
 }
@@ -111,7 +112,7 @@ function parseOpenSpool(data) {
     }
     */
     
-    let tag = new filamentOpenSpool();
+    let tag = new FilamentOpenSpool();
     result = tag.parseDataString(data);
     if (! result) {
         return null;
@@ -149,7 +150,7 @@ function parseOpenSpool(data) {
 
 function parseOpenTag(data) {
     let tmpData = data;
-    let tag = new filamentOpenTag();
+    let tag = new FilamentOpenTag();
     let i = 0;
     let ln = 0;
     
@@ -226,7 +227,15 @@ function parseOpenTag(data) {
     return tag;
 }
 
+function activateTag(tag) {
+    setActiveTagData(tag.toDataString());
+}
+
 function displayOpenTag(tag) {
+    if (! tag instanceof FilamentOpenTag) {
+        console.log("Tag is not an instance of the FilamentOpenTag class")
+        return
+    }
     document.getElementById("tagVersion").innerText = tag.tagVersion;
     document.getElementById("manufacturer").innerText = tag.manufacturer;
     document.getElementById("material").innerText = tag.material;
@@ -241,7 +250,11 @@ function displayOpenTag(tag) {
     document.getElementById("colorHex").style.backgroundColor = "#" + tag.colorHex;
 }
 
-function displayOSTag(tag) {
+function displayOpenSpoolTag(tag) {
+    if (! tag instanceof FilamentOpenSpool) {
+        console.log("Tag is not an instance of the FilamentOpenSpool class")
+        return
+    }
     document.getElementById("protocol").innerText = ""  + tag.displayProtocol;
     document.getElementById("type").innerText = tag.type;
     document.getElementById("colorHex").innerText = tag.colorHex;

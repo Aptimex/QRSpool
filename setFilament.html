@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+    <head>
+        <meta charset="utf-8">
+        <script src="javascript/localStorage.js"></script>
+        <script src="javascript/filament.js"></script>
+        <script src="javascript/server.js"></script>
+        <title></title>
+    </head>
+    <body style="font-size: 2em">
+        <p id="error"></p>
+        
+        <h1>Last Scan</h1>
+        
+        <p>Raw data:</p>
+        <p><span id="rawData" style="background: #eee"></span></p>
+        
+        <table>
+            <tr>
+                <th>Protocol</th><td id="protocol"></td>
+            </tr>
+            <tr>
+                <th>Type</th><td id="type"></td>
+            </tr>
+            <tr>
+                <th>Color (Hex)</th><td> 
+                    <span id="colorHex"></span> 
+                    (<span id="colorHexDisplay">..........</span>)
+                </td>
+            </tr>
+            <tr>
+                <th>Brand</th><td id="brand"></td>
+            </tr>
+            <tr>
+                <th>Min Temp (C)</th><td id="minTemp"></td>
+            </tr>
+            <tr>
+                <th>Max Temp (C)</th><td id="maxTemp"></td>
+            </tr>
+        </table>
+        
+        <button type="button" name="applyFilament" onclick="applyTag()">Apply Filament</button>
+    </body>
+    
+    <script type="text/javascript">
+        let tag = parseActiveTag();
+        if (tag) {
+            displayOpenSpoolTag(tag);
+        }
+        
+        function parseActiveTag() {
+            let tagData = getActiveTagData();
+            if (tagData == null) {
+                document.getElementById("error").innerText = "No active tag found"
+                return null
+            }
+            
+            document.getElementById("rawData").innerText = tagData;
+            let tagObj = parseOpenSpool(tagData);
+            if (tagObj == null) {
+                document.getElementById("error").innerText = "Could not parse active tag data"
+                return null;
+            }
+            
+            return tagObj;
+        }
+        
+        async function applyTag() {
+            let tag = parseActiveTag();
+            if (tag) {
+                const response = await setFilamentFromTag(0, 1, tag);
+                console.log(response);
+                document.getElementById("error").innerText = response;
+            }
+        }
+    </script>
+</html>

@@ -1,21 +1,22 @@
-function setServer(server) {
-    localStorage.setItem("backendServer", server);
-    console.log("Saved");
-}
-
-function getServer() {
-    return localStorage.getItem("backendServer");
-}
-
-function clearServer() {
-    localStorage.removeItem("backendServer");
-}
-
 function makeError(msg) {
     let e = {
         error: msg
     };
     return e;
+}
+
+async function setFilamentFromTag(amsID, slotID, tag) {
+    try {
+        var colorHex = tag.colorHex;
+        var fType = tag.type;
+        var brand = tag.brand;
+        var minTemp = tag.minTemp;
+        var maxTemp = tag.maxTemp;
+    } catch (e) {
+        return '{"error": "Tag object is missing expected value(s)"}'
+    }
+    const r = await setFilament(amsID, slotID, colorHex, fType, brand, minTemp, maxTemp);
+    return r;
 }
 
 async function setFilament(amsID, slotID, colorHex, fType, brand, minTemp, maxTemp) {
@@ -40,7 +41,7 @@ async function setFilament(amsID, slotID, colorHex, fType, brand, minTemp, maxTe
         },
         body: JSON.stringify(data)
     });
-    return response.json();
+    return response.text();
 }
 
 async function amsinfo() {
