@@ -101,6 +101,55 @@ class FilamentOpenSpool {
     }
 }
 
+class AMSSlot {
+    constructor(id, type, colorHex, brand, minTemp, maxTemp, k, bedTemp) {
+        this.id = id;
+        this.type = type;
+        this.colorHex = colorHex;
+        this.brand = brand;
+        this.minTemp = minTemp;
+        this.maxTemp = maxTemp;
+        this.k = k;
+        this.bedTemp = bedTemp;
+    }
+    
+    display(parentEl) {
+        var tbl = document.createElement("table");
+        tbl.classList.add("table");
+        const {...iterableSelf} = this;
+        
+        Object.entries(iterableSelf).forEach(([k, v]) => {
+            if (k == "colorHex") {
+                v = v.substring(0,6);
+            }
+            let tr = tbl.insertRow();
+            tr.setAttribute("scope","row");
+            
+            let td = tr.insertCell();
+            td.setAttribute("scope","col");
+            
+            let th = document.createElement("th");
+            tr.insertBefore(th, td);
+            
+            th.innerText = k;
+            td.innerText = v;
+            if (k == "colorHex") {
+                let box = document.createElement("div");
+                //box.style.backgroundColor = '#' + v;
+                box.style.backgroundColor = '#' + "012345";
+                box.style.width = "150px";
+                box.style.height = box.style.width;
+                box.classList.add("color-box");
+                //box.innerText = ".....";
+                td.appendChild(box);
+            }
+        });
+        
+        parentEl.appendChild(tbl);
+        //console.log(tbl);
+    }
+}
+
 function parseOpenSpool(data) {
     /*
     let fields = data.split("|")

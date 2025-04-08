@@ -2,12 +2,16 @@
 <html lang="en" dir="ltr">
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <script src="javascript/localStorage.js"></script>
         <script src="javascript/filament.js"></script>
         <script src="javascript/server.js"></script>
-        <title></title>
+        <title>Set Filament</title>
+        
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
     </head>
     <body style="font-size: 2em">
+        <a href="/">Home</a>
         <p id="error"></p>
         
         <h1>Last Scan</h1>
@@ -40,6 +44,7 @@
         </table>
         
         <button type="button" name="applyFilament" onclick="applyTag()">Apply Filament</button>
+        <br><br>
     </body>
     
     <script type="text/javascript">
@@ -73,5 +78,25 @@
                 document.getElementById("error").innerText = response;
             }
         }
+        
+        async function showAMS() {
+            let amsData = await amsinfo();
+            let ams;
+            try {
+                ams = JSON.parse(amsData);
+            } catch (e) {
+                console.log(e.message);
+                console.log(amsData);
+                return
+            }
+            console.log(ams);
+            
+            let ams0 = ams[0];
+            let slot0 = ams0.slots[0];
+            let slotObj = new AMSSlot(slot0.id, slot0.tray_type, slot0.tray_color, "testBrand", slot0.nozzle_temp_min, slot0.nozzle_temp_max, slot0.k, slot0.bed_temp);
+            slotObj.display(document.body);
+        }
+        showAMS();
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
 </html>

@@ -2,6 +2,7 @@
 <html lang="en" dir="ltr">
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <script src="javascript/localStorage.js"></script>
         <script src="javascript/server.js"></script>
         <title>Setup</title>
@@ -16,6 +17,8 @@
                 background-color: whitesmoke;
             }
         </style>
+        
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
     </head>
     
     <body>
@@ -26,10 +29,12 @@
         </div>
         <button type="button" name="save", onclick="setServer(document.getElementById('serverLoc').value)">Save </button>
         <button type="button" name="clear", onclick="clearServer(); document.getElementById('serverLoc').value=''">Clear </button>
+        <button type="button" name="clear", onclick="if (getServer()) {window.open(getServer())}">Open address in new tab </button>
         
         <div class="">
             <p>This should be the full URL of your local server that handles communication with your printer.</p>
-            <p>If this site is using HTTPS then the the server site must be also (self-signed cert is usually fine)</p>
+            <p>If this site is using HTTPS then the the server site must be also <br/>
+                (self-signed cert works IF you browse to it first and accept the security risk)</p>
             <p>This value will be saved to your device's local storage.</p>
         </div>
         <hr>
@@ -57,4 +62,5 @@
             amsinfo().then(r => document.getElementById('validateResult').innerText = r);
         }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
 </html>
