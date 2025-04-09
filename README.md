@@ -33,39 +33,91 @@ I've had good luck generating QR codes with this data format that are 30x30mm, w
 When printing, use Arachne slicing for best results. 
 
 ## Server Interactions
-The frontend is responsible for parsing QR codes, extracting filament data, and sending it to a separate server that handles passing it off to your printer. Since different printer brands have different APIs, this modular separation makes developing support for different printers much easier. 
+The frontend (web client) is responsible for parsing QR codes, extracting filament data, and sending it to a separate server that handles passing it off to your printer. Since different printer brands have different APIs, this modular separation makes developing servers that can interact with different printers much easier. 
 
-The server should expose to endpoints: `/amsinfo` and `/setFilament`. 
-- The `setFilament` endpoint should accept POST requests with JSON data that describes a new filament to be configured in a particular AMS slot. 
-- The `amsinfo` endpoint should return JSON data about the available AMS slots. In particular, it should provide everything the frontend needs to help the user generate a request to the `setFilament` endpoint using the data from a QR code.
-
-### amsinfo
-This should return the following required JSON data:
+The server should expose these API endpoints:
+- `/serverStatus` should accept GET requests and return this JSON-formatted response indicating that the server is running (regardless of printer status), and information about authentication requirements: 
 ```json
 {
-    "printer": [
-        {
-            "type": "ams",
-            "id": "<ams_identifier>",
-            "slots": [
-                {
-                    "type": "slot",
-                    "id": "<slot_identifier>"
-                },
-            ]
-        },
-    ]
+    "status": "running",
+    "authRequired": "true|false"
 }
 ```
-- The `printer` key contains a list of `ams`-typed objects 
-- Each `ams`-typed object also contains an identifier (`id`), and a list of `slot`-typed objects (`slots`)
-- Each `slot`-typed object contains an identifier `id`
-- Other info may be included in addition to these required fields, such as data about the existing filament slot configurations
-- The `id` values should be the same ones that are needed to identify the AMS slot when interacting with the `setFilament` endpoint
+If `authRequired` is set to `true`, then requests to all other endpoints 
 
-### setFilament
+- `/printerStatus` should accept GET requests and return this JSON response, where `<statusMessage>` is some status message obtained from the printer, or a message indicating a communication error with the printer: 
+```json
+{
+    "status": "<statusMessage>"
+}
+```
+- `/slots` should accept GET requests and return JSON data about the printer's available AMS slots. In particular, it should provide everything the frontend needs to help the user generate a request to the `setFilament` endpoint using the data from a QR code. More details in the `/slots` section below. 
+- `/setFilament` should accept POST or PUT requests containing JSON data that describes a new filament to be configured in a particular AMS slot. The data keys that needs to be submitted to this endpoint are defined by the response returned by the `/slots` endpoint. 
 
+### /slots
+This endpoint should return the following JSON data (data in `<>` brackets should be replaced with an appropriate string):
+```json
+{
+    "slots": [
+        {
+            "<id1>": "<identifier1>",
+            "<id2>": "<identifier2>",
+            "<dk1>": "<value>",
+            "<dk2>": "<value>",
+            "<dk3>": "<value>",
+            "<otherKey>": "<value>",
+        },
+    ],
+    "slotIDKeys": ["<id1>", "<id2>"],
+    "displayKeys": ["<dk1>", "<dk2>", "<dk3>"],
+    "colorHexKeys": ["<dk3>"],
+    "postKeys": {
+            "TYPE": "<kTYPE>", 
+            "COLOR_HEX": "<kCOLOR_HEX>", 
+            "BRAND": "<kBRAND>", 
+            "MIN_TEMP": "<kMIN_TEMP>", 
+            "MAX_TEMP": "<kMAX_TEMP>"
+        }
+}
+```
+- `slots` is a list of `slot` objects representing filament slots available on the printer. The keys can have any names, 
+    - The server may return additional keys-value pairs in the `slot` object that do not need to be used by the client. 
+- `slotIDKeys` is a list of keys present in every `slot` object that (together) uniquely identify the slot. The client must supply ALL these keys values exactly back to the server when requesting to modify a slot. At least one value must be returned in this list. 
+- `displayKeys` is a list of keys present in every `slot` object that should be displayed on the client when the user is selecting a slot to apply filament settings to. `slotIDKeys` will always be displayed and should not be included in this list. This list should usually include at least the fields (minus the `OS1.0` header) that are present in the QR codes. 
+- `colorHexKeys` is a list of keys that, IF present in a `slot` object and displayed to the user, should be interpreted by the client as a 6-digit hex color code and displayed to the user as that color. 
+- `postKeys` is used to map the values present in a QR code to the associated keys in a `slot` object. For example, `"TYPE": "filament_type"` means that the `slot.filament_type` value corresponds to the TYPE field in a QR code. TODO: do we really need this? Don't think there's any need to directly/explicitly compare stored values with scanned values. 
 
+### /setFilament
+This endpoint accepts a JSON object describing a target filament slot and what filament to set for that slot. It should have the following format (data in `<>` brackets should be replaced with an appropriate string):
+```json
+{
+    "<id1>": "<identifier1>",
+    "<id2>": "<identifier2>",
+    "type": "<value>",
+    "colorHex": "<value>",
+    "brand": "<value>",
+    "minTemp": "<value>",
+    "maxTemp": "<value>",
+}
+```
+- The `<idX>` keys and values are the same as the ones provided by the `/slots` endpoint for the target slot, as defined in the `slotIDKeys` list. Even if only one slot is available, this value(s) should still be provided. 
+- The remaining values are taken from the scanned QR code. 
+
+### Authentication
+The server may optionally enforce a Basic Authentication scheme with username and password, separate from any authentication that has to happen between the server and printer. This is intended to provide some baseline protection against unauthorized configuration changes being submitted through the server, for example if the server is reachable by guests on your wifi network. Note that this approach is probably still vulnerable to CSRF attacks. 
+
+Note that this provides very minimal protection if the server uses no encryption (HTTP), moderate protection if the server uses encryption (HTTPS) with a self-signed certificate, and best protection if the server uses encryption with a proper (not self-signed) certificate. However, in all cases this is still vulnerable to brute-force attacks, so pick a strong secret and don't expose the server to the Internet. 
+
+To enable server authentication, set non-empty ASCII strings for the `AUTH_USER` and `AUTH_PASS` variables in the `bambu_config.py` file. 
+
+If either of those variables is non-empty, the server must return the `true` value for the `authRequired` key in the `/serverStatus` response and require authentication before processing requests on any other API endpoint. 
+
+To authenticate, the client provides a standard Basic Authentication header in all API requests, where `<cred>` is the base64-encoded `<AUTH_USER>:<AUTH_PASS>` string: 
+```
+Authorization: Basic <cred>
+```
+
+The username and password can be set by the user in the `settings.html` page, and are stored in the client's local storage, just like the server URL. They are NOT stored in a cookie in order to help prevent accidental exposure to the client website server. 
 
 
 
