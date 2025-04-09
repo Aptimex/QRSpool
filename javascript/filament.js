@@ -88,6 +88,10 @@ class FilamentOpenSpool {
         return true
     }
     
+    display(parentEl) {
+        return
+    }
+    
     // Return the data that should be placed in a QR code
     toDataString() {
         let d = FilamentOpenSpool.delim;
@@ -116,6 +120,8 @@ class AMSSlot {
     display(parentEl) {
         var tbl = document.createElement("table");
         tbl.classList.add("table");
+        tbl.classList.add("table-striped");
+        tbl.classList.add("table-bordered");
         const {...iterableSelf} = this;
         
         Object.entries(iterableSelf).forEach(([k, v]) => {
@@ -135,12 +141,8 @@ class AMSSlot {
             td.innerText = v;
             if (k == "colorHex") {
                 let box = document.createElement("div");
-                //box.style.backgroundColor = '#' + v;
-                box.style.backgroundColor = '#' + "012345";
-                box.style.width = "150px";
-                box.style.height = box.style.width;
+                box.style.backgroundColor = '#' + v;
                 box.classList.add("color-box");
-                //box.innerText = ".....";
                 td.appendChild(box);
             }
         });
@@ -311,5 +313,6 @@ function displayOpenSpoolTag(tag) {
     document.getElementById("minTemp").innerText = tag.minTemp;
     document.getElementById("maxTemp").innerText = tag.maxTemp;
     
-    document.getElementById("colorHexDisplay").style.backgroundColor = "#" + tag.colorHex;
+    //document.getElementById("colorHexDisplay").style.backgroundColor = "#" + tag.colorHex;
+    document.getElementById("tagColorDisplay").style.backgroundColor = "#" + tag.colorHex;
 }

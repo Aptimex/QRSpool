@@ -6,40 +6,44 @@
         <script src="javascript/localStorage.js"></script>
         <script src="javascript/filament.js"></script>
         <script src="javascript/server.js"></script>
+        
+        <link rel="stylesheet" href="./css/global.css">
         <title>Set Filament</title>
         
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
     </head>
-    <body style="font-size: 2em">
+    <body>
         <a href="/">Home</a>
         <p id="error"></p>
         
         <h1>Last Scan</h1>
         
-        <p>Raw data:</p>
-        <p><span id="rawData" style="background: #eee"></span></p>
         
-        <table>
-            <tr>
-                <th>Protocol</th><td id="protocol"></td>
+        
+        <table class="table table-striped table-bordered">
+            <tr scope="row">
+                <th>Raw Data</th><td scope="col" id="rawData"></td>
+            </tr>
+            <tr scope="row">
+                <th>Protocol</th><td scope="col" id="protocol"></td>
             </tr>
             <tr>
-                <th>Type</th><td id="type"></td>
+                <th>Type</th><td scope="col" id="type"></td>
             </tr>
-            <tr>
-                <th>Color (Hex)</th><td> 
-                    <span id="colorHex"></span> 
-                    (<span id="colorHexDisplay">..........</span>)
+            <tr scope="row">
+                <th>Color (Hex)</th><td scope="col"> 
+                    <span id="colorHex"></span>
+                    <div class="color-box" id="tagColorDisplay"></div>
                 </td>
             </tr>
-            <tr>
-                <th>Brand</th><td id="brand"></td>
+            <tr scope="row">
+                <th>Brand</th><td scope="col" id="brand"></td>
             </tr>
-            <tr>
-                <th>Min Temp (C)</th><td id="minTemp"></td>
+            <tr scope="row">
+                <th>Min Temp (C)</th><td scope="col" id="minTemp"></td>
             </tr>
-            <tr>
-                <th>Max Temp (C)</th><td id="maxTemp"></td>
+            <tr scope="row">
+                <th>Max Temp (C)</th><td scope="col" id="maxTemp"></td>
             </tr>
         </table>
         
@@ -92,7 +96,7 @@
             console.log(ams);
             
             let ams0 = ams[0];
-            let slot0 = ams0.slots[0];
+            let slot0 = ams0.slots[1];
             let slotObj = new AMSSlot(slot0.id, slot0.tray_type, slot0.tray_color, "testBrand", slot0.nozzle_temp_min, slot0.nozzle_temp_max, slot0.k, slot0.bed_temp);
             slotObj.display(document.body);
         }

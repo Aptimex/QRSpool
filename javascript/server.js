@@ -1,8 +1,10 @@
-function makeError(msg) {
-    let e = {
-        error: msg
-    };
-    return e;
+function makeError(msg, errObj = null) {
+    
+    if (errObj == null) {
+        errObj = {}
+    }
+    errObj.error = msg;
+    return errObj;
 }
 
 async function setFilamentFromTag(amsID, slotID, tag) {
@@ -44,19 +46,28 @@ async function setFilament(amsID, slotID, colorHex, fType, brand, minTemp, maxTe
     return response.text();
 }
 
-async function amsinfo() {
+function getServerURL() {
     let server = getServer()
     if (server == null || server.length < 1) {
         return '{"error": "Server not set"}'
     }
     
-    let url = "" + server + "/amsinfo"
     try {
-        let x = new URL(url)
+        //If it's not a valid URL, this will fail
+        let x = new URL(server)
     } catch (e) {
-        return '{"error": "Invalid URL. Make sure you include http(s):// at the start"}'
+        return null;
     } 
+    return server;
+}
+
+async function amsinfo() {
+    let server = getServerURL()
+    if (server == null) {
+        return "error: Server not set or invalid URL"
+    }
     
+    let url = "" + server + "/amsinfo"
     try {
         const response = await fetch(url);
         const rj = await response.json();
@@ -66,6 +77,26 @@ async function amsinfo() {
         //return JSON.stringify(makeError(e));
         console.log(e);
         return e.message + "; See broswer console for more details";
+    }
+    
+}
+
+async function getServerStatus() {
+    let server = getServerURL()
+    if (server == null) {
+        return makeError("Server not set or invalid URL")
+    }
+    
+    let url = "" + server + "/serverStatus"
+    try {
+        const r = await fetch(url);
+        const jsonResp = await r.json();
+        return jsonResp;
+        
+    } catch (e) {
+        //return JSON.stringify(makeError(e));
+        console.log(e);
+        return makeError("" + e.message + "; See broswer console for more details");
     }
     
 }

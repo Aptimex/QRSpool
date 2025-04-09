@@ -40,26 +40,76 @@
         <hr>
         <br>
         
-        <div class="">
+        <div>
             <button type="button" name="validate", onclick="validateServer()">Validate Server</button>
-            <p>Attempt to connect to the server and request info about the AMS slots, which will be displayed below if succesful. </p> 
+            <p>Attempt to connect to the server and request status info about it.</p> 
             <div class="">
                 <pre id="validateResult"></pre>
             </div>
         </div>
+        
+        <h2>Server Info</h2>
+        <table class="table table-striped table-bordered">
+            <tr scope="row">
+                <th>Server status</th><td scope="col" id="showServerStatus"></td>
+            </tr>
+            <tr scope="row">
+                <th>Server requires auth</th><td scope="col" id="showAuthRequired"></td>
+            </tr>
+        </table>
     </body>
     
     <script type="text/javascript">
-        let s = getServer();
-        if (s != null && s.length > 0) {
-            document.getElementById('serverLoc').value = s;
-        } else {
-            document.getElementById('serverLoc').value = "";
+        function showServerURL() {
+            let s = getServer();
+            if (s != null && s.length > 0) {
+                document.getElementById('serverLoc').value = s;
+            } else {
+                document.getElementById('serverLoc').value = "";
+            }
         }
+        showServerURL();
+        
+        
+        function showAuthRequired() {
+            document.querySelector('#showAuthRequired').innerText = (
+                isAuthRequired() ? "✅" : 
+                    (getAuthRequired() == null) ? "UNKNOWN" : "❌"
+            );
+        }
+        showAuthRequired();
+        
+        
+        
+        
         
         function validateServer() {
-            document.getElementById('validateResult').innerText = "Querying server, please wait...";
-            amsinfo().then(r => document.getElementById('validateResult').innerText = r);
+            document.querySelector('#validateResult').innerText = "Querying server, please wait...";
+            //amsinfo().then(r => document.getElementById('validateResult').innerText = r);
+            
+            getServerStatus().then(s => {
+                try {
+                    document.querySelector("#showServerStatus").innerText = s.status;
+                    document.querySelector("#validateResult").innerText = "";
+                    
+                    if (s.authRequired.toLowerCase() === 'true') {
+                        setAuthRequired();
+                    } else if (s.authRequired.toLowerCase() === 'false') {
+                        setAuthNotRequired();
+                    } else {
+                        clearAuthRequired();
+                    }
+                    
+                } catch (e) {
+                    try {
+                        document.querySelector("#validateResult").innerText = JSON.stringify(s);
+                    } catch (e) {
+                        document.querySelector("#validateResult").innerText = "Server response was not JSON: " + s;
+                    } 
+                }
+                showAuthRequired();
+            });
+            
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
