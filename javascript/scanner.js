@@ -26,6 +26,14 @@ navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).th
   video.srcObject = stream;
   video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
   video.play();
+  
+  //Try to toggle phone torch for easier QR reading
+  const track = stream.getVideoTracks()[0];
+  track.applyConstraints({
+      advanced: [{torch: true}]
+  });
+  
+  
   requestAnimationFrame(tick);
 });
 
