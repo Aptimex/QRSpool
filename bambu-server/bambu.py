@@ -23,8 +23,21 @@ def connect():
     # Connect to the BambuLab 3D printer
     PRINTER.connect()
 
+def ensureConnected():
+    if not PRINTER.mqtt_client_connected():
+        connect()
+        time.sleep(3)
+        if not PRINTER.mqtt_client_connected():
+            return makeError("Unable to connect to printer")
+    return None
+
 def disconnect():
     PRINTER.disconnect()
+
+def makeError(msg: str):
+    return {
+        "error": msg
+    }
 
 '''
 # ======== Begin Monkey Patch ========
@@ -109,13 +122,61 @@ def listFilamentTrays(ams: bl.AMS):
         trays.append(ft)
     
     return trays
+
+def getPrinterStatus():
+    error = ensureConnected()
+    if error:
+        return error
+    
+    return {
+        "status": PRINTER.get_state()
+    }
+
+def getSlots():
+    error = ensureConnected()
+    if error:
+        return error
+    
+    amsh = PRINTER.ams_hub()
+    slots = []
+    for id, ams in amsh.ams_hub.items():
+        amsID = id
         
+        for id, tray in ams.filament_trays.items():
+            # Start by just copying all the tray/slot data returned by the printer
+            slot = tray.__dict__.copy()
+            
+            # Asign unique identifiers
+            slot["amsID"] = amsID
+            slot["slotID"] = slotID
+            
+            # Map important internal values to more user-friendly (display) values
+            slot["type"] = tray.tray_type
+            slot["colorHex"] = tray.tray_color[:6]
+            slot["brand"] = tray.tray_sub_brands
+            slot["minTemp"] = tray.nozzle_temp_min
+            slot["maxTemp"] = tray.nozzle_temp_max
+            slot["bedTemp"] = tray.bed_temp
+            
+            slots.append(slot)
+
+    resp = {
+        "slots": slots,
+        "slotIDKeys": ["amsID", "slotID"],
+        "displayKeys": ["type", "colorHex", "brand", "minTemp", "maxTemp", "k", "bedTemp"],
+        "colorHexKeys": ["colorHex"],
+    }
+    
+    return resp
+    
 
 # Returns a list of AMS units indexed by their index number
 # Each AMS has a list of trays (spool slots), also indexed by their index number
 def getAMSInfo():
-    if not PRINTER.mqtt_client_connected():
-        connect()
+    error = ensureConnected()
+    if error:
+        return error
+    
     amsh = PRINTER.ams_hub()
     #trays = []
     
@@ -180,8 +241,7 @@ def getTrayFilament(tray: bl.FilamentTray):
 '''
 
 def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0):
-    if not PRINTER.mqtt_client_connected():
-        connect()
+    ensureConnected()
     
     amsID = int(amsID)
     trayID = int(trayID)
