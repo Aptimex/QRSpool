@@ -148,7 +148,7 @@ def getSlots():
             
             # Asign unique identifiers
             slot["amsID"] = amsID
-            slot["slotID"] = slotID
+            slot["slotID"] = id
             
             # Map important internal values to more user-friendly (display) values
             slot["type"] = tray.tray_type

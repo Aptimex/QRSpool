@@ -26,15 +26,13 @@ function clearActiveTag() {
     localStorage.removeItem("activeTag");
 }
 
-//Auth Required
+//Authentication
 function setAuthRequired() {
     localStorage.setItem("authRequired", "true");
-    console.log("Auth Required: true" );
 }
 
 function setAuthNotRequired() {
     localStorage.setItem("authRequired", "false");
-    console.log("Auth Required: false" );
 }
 
 function getAuthRequired() {
@@ -47,4 +45,33 @@ function isAuthRequired() {
 
 function clearAuthRequired() {
     localStorage.removeItem("authRequired");
+}
+
+//Save creds as bas64 string, ready to be put in header
+function setAuthCreds(username, password) {
+    localStorage.setItem("basicAuthUser", username);
+    localStorage.setItem("basicAuthPass", password);
+    console.log("Basic Auth creds saved");
+}
+
+function getAuthUser() {
+    return localStorage.getItem("basicAuthUser");
+}
+
+function getAuthPass() {
+    return localStorage.getItem("basicAuthPass");
+}
+
+function getAuthCredHeader() {
+    u = getAuthUser();
+    p = getAuthPass();
+    if (u == null || p == null) {
+        return null;
+    }
+    return btoa("" + u + ":" + p);
+}
+
+function clearAuthCreds() {
+    localStorage.removeItem("basicAuthUser");
+    localStorage.removeItem("basicAuthPass");
 }

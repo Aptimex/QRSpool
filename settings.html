@@ -23,26 +23,64 @@
     
     <body>
         <a href="/">Home</a>
-        <h1>Configure Server Connection</h1>
-        <div class="">
-            <p>Backend Server Location: </p><input type="text" name="serverLoc" id="serverLoc", size=75, placeholder="https://example.com:4443">
-        </div>
-        <button type="button" name="save", onclick="setServer(document.getElementById('serverLoc').value)">Save </button>
-        <button type="button" name="clear", onclick="clearServer(); document.getElementById('serverLoc').value=''">Clear </button>
-        <button type="button" name="clear", onclick="if (getServer()) {window.open(getServer())}">Open address in new tab </button>
+        <h1>Settings</h1>
         
-        <div class="">
-            <p>This should be the full URL of your local server that handles communication with your printer.</p>
-            <p>If this site is using HTTPS then the the server site must be also <br/>
-                (self-signed cert works IF you browse to it first and accept the security risk)</p>
-            <p>This value will be saved to your device's local storage.</p>
+        <div class="mb-3">
+            <label for="basic-url" class="form-label">Backend Server URL</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="serverLoc", placeholder="https://example.com:4443">
+            </div>
+            <div class="form-text" id="basic-addon4">The full URL of your local server that handles communication with your printer.</div>
+            
+            <label for="basic-url" class="form-label">Server Username</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="serverUser">
+            </div>
+            
+            <label for="basic-url" class="form-label">Server Password</label>
+            <div class="input-group">
+                <input type="password" class="form-control" id="serverPass">
+            </div>
+        
+            <button class="btn btn-primary btn-sm" type="button" name="save", onclick="saveServerInfo()">
+                Save 
+            </button>
+            <button class="btn btn-warning btn-sm" type="button" name="clear", onclick="clearServerInfo(); showServerData()">
+                Clear 
+            </button>
+            <button class="btn btn-info btn-sm" type="button" name="clear", onclick="if (getServer()) {window.open(getServer())}">
+                Open address in new tab 
+            </button>
+            <button class="btn btn-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapseServerInfo" aria-expanded="false" aria-controls="collapseServerInfo">
+                More Info
+            </button>
+        </div>
+        
+        <div>
+            
+        </div>
+
+        <div class="collapse" id="collapseServerInfo">
+            <div class="card card-body">
+                <p>
+                    If this site is using HTTPS then the the server site must be also <br/>
+                    (self-signed cert works IF you browse to it first and accept the security risk)
+                </p>
+                <p>
+                    This value will be saved to your device's local storage.
+                </p>
+            </div>
         </div>
         <hr>
         <br>
         
         <div>
-            <button type="button" name="validate", onclick="validateServer()">Validate Server</button>
-            <p>Attempt to connect to the server and request status info about it.</p> 
+            <button btn btn-primary btn-sm type="button" name="validate", onclick="validateServer()">
+                Validate Server
+            </button>
+            <p>
+                Attempt to connect to the server and request status info about it.
+            </p> 
             <div class="">
                 <pre id="validateResult"></pre>
             </div>
@@ -56,32 +94,74 @@
             <tr scope="row">
                 <th>Server requires auth</th><td scope="col" id="showAuthRequired"></td>
             </tr>
+            <tr scope="row">
+                <th>Creds are valid?</th><td scope="col" id="showGoodCreds"></td>
+            </tr>
         </table>
     </body>
     
     <script type="text/javascript">
-        function showServerURL() {
-            let s = getServer();
-            if (s != null && s.length > 0) {
-                document.getElementById('serverLoc').value = s;
-            } else {
-                document.getElementById('serverLoc').value = "";
-            }
-        }
-        showServerURL();
-        
-        
-        function showAuthRequired() {
-            document.querySelector('#showAuthRequired').innerText = (
-                isAuthRequired() ? "✅" : 
-                    (getAuthRequired() == null) ? "UNKNOWN" : "❌"
+        function saveServerInfo() {
+            setServer(document.querySelector('#serverLoc').value);
+            setAuthCreds(
+                document.querySelector('#serverUser').value,
+                document.querySelector('#serverPass').value
             );
         }
+        
+        function clearServerInfo() {
+            clearServer(); 
+            clearAuthCred();
+            showServerData()
+        }
+    
+        function showServerData() {
+            let s = getServer();
+            if (s != null) {
+                document.querySelector('#serverLoc').value = s;
+            } else {
+                document.querySelector('#serverLoc').value = "";
+            }
+            
+            let u = getAuthUser();
+            if (u != null) {
+                document.querySelector('#serverUser').value = u;
+            } else {
+                document.querySelector('#serverUser').value = "";
+            }
+            
+            let p = getAuthPass();
+            if (p != null) {
+                document.querySelector('#serverPass').value = p;
+            } else {
+                document.querySelector('#serverPass').value = "";
+            }
+        }
+        showServerData();
+        
+        function showAuthRequired(isCredGood) {
+            document.querySelector('#showAuthRequired').innerText = (
+                isAuthRequired() ? "Yes" : 
+                    (getAuthRequired() == null) ? "Unknown" : "No"
+            );
+            
+            if (isAuthRequired()) {
+                console.log("auth required")
+                if (isCredGood) {
+                    console.log("good cred")
+                    document.querySelector('#showGoodCreds').innerText = "Yes";
+                } else if (isCredGood == false) {
+                    console.log("bad cred")
+                    document.querySelector('#showGoodCreds').innerText = "No";
+                } else { //null
+                    console.log("unknown cred")
+                    document.querySelector('#showGoodCreds').innerText = "Unknown";
+                }
+            } else {
+                document.querySelector('#showGoodCreds').innerText = "N/A";
+            }
+        }
         showAuthRequired();
-        
-        
-        
-        
         
         function validateServer() {
             document.querySelector('#validateResult').innerText = "Querying server, please wait...";
@@ -92,24 +172,24 @@
                     document.querySelector("#showServerStatus").innerText = s.status;
                     document.querySelector("#validateResult").innerText = "";
                     
-                    if (s.authRequired.toLowerCase() === 'true') {
+                    if (s.authRequired == true) {
                         setAuthRequired();
-                    } else if (s.authRequired.toLowerCase() === 'false') {
+                    } else if (s.authRequired == false) {
                         setAuthNotRequired();
                     } else {
                         clearAuthRequired();
                     }
+                    showAuthRequired(s.authCorrect);
                     
                 } catch (e) {
+                    console.log(e);
                     try {
                         document.querySelector("#validateResult").innerText = JSON.stringify(s);
                     } catch (e) {
                         document.querySelector("#validateResult").innerText = "Server response was not JSON: " + s;
                     } 
                 }
-                showAuthRequired();
             });
-            
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>

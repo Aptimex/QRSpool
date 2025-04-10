@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS, cross_origin
+from flask_basicauth import BasicAuth
 import json
 import bambu
 import time
@@ -11,6 +12,10 @@ from bambu_config import AUTH_USER, AUTH_PASS
 app = Flask(__name__)
 CORS(app) # allow CORS for all domains on all routes.
 # CORS(app, origins=["http://localhost:3000"]) # Allow CORS from specific domains for better security
+
+app.config['BASIC_AUTH_USERNAME'] = AUTH_USER
+app.config['BASIC_AUTH_PASSWORD'] = AUTH_PASS
+basic_auth = BasicAuth(app)
 
 CONNECTED = False
 T: Timer = None
@@ -53,7 +58,7 @@ def setAuth():
     # Verify that the credential can be properly accessed and encoded
     try:
         cred = f"{AUTH_USER}:{AUTH_PASS}"
-        BASIC_AUTH = b64encode(bytes(cred, "utf-8"))
+        BASIC_AUTH = b64encode(bytes(cred, "utf-8")).decode("utf-8")
     except Exception as e:
         print(e)
         BASIC_AUTH = None
@@ -67,7 +72,23 @@ class FilamentData(object):
         self.colorHex = colorHex
         self.minTemp = minTemp
         self.maxTemp = maxTemp
-        
+
+class OpenSpoolData(object):
+    def __init__(self, header, type, brand, colorHex, minTemp = 0, maxTemp = 0):
+        super(OpenSpoolData, self).__init__()
+        self.header = header
+        self.type = type
+        self.brand = brand
+        self.colorHex = colorHex
+        self.minTemp = minTemp
+        self.maxTemp = maxTemp
+
+class OpenSpoolBambuSlot(OpenSpoolData):
+    def __init__(self, amsID, slotID, header, type, brand, colorHex, minTemp = 0, maxTemp = 0):
+        super(OpenSpoolData, self).__init__(header, type, brand, colorHex, minTemp, maxTemp)
+        self.amsId = amsID
+        self.slotId = slotID
+    
 
 @app.route("/")
 def hello_world():
@@ -75,38 +96,58 @@ def hello_world():
 
 @app.route("/serverStatus")
 def serverStatus():
-    authRequired = "false"
+    authRequired = False
+    authCorrect = None
     if BASIC_AUTH != None:
-        authRequired = "true"
+        authRequired = True
+        
+        authHeader = None
+        try:
+            authHeader = request.headers.get('Authorization')
+        except KeyError as e:
+            print("Authorization header not found")
+        print(f"Authorization header: {authHeader}")
+            
+        if authHeader:
+            targetHeader = f"Basic {BASIC_AUTH}"
+            print(f"Expected header: {targetHeader}")
+            if authHeader == targetHeader:
+                authCorrect = True
+            else:
+                authCorrect = False
+    
+    
     
     status = {
         "status": "running",
-        "authRequired": authRequired
+        "authRequired": authRequired,
+        "authCorrect": authCorrect
     }
     return jsonify(status)
 
 @app.route("/printerStatus")
+@basic_auth.required
 def printerStatus():
     return jsonify(bambu.getPrinterStatus())
 
 @app.route("/amsinfo")
-#@cross_origin()
+@basic_auth.required
 def AMSInfo():
     connect()
     p = bambu.getAMSInfo()
     return jsonify(p)
 
 @app.route("/slots")
-#@cross_origin()
+@basic_auth.required
 def getAMSInfo():
     connect()
     p = bambu.getSlots()
     return jsonify(p)
     
 
-@app.route("/setFilament/<amsIndex>/<trayIndex>", methods=['PUT', 'POST'])
-#@cross_origin()
-def setFilament(amsIndex, trayIndex):
+@app.route("/setFilamentOld/<amsIndex>/<trayIndex>", methods=['PUT', 'POST'])
+@basic_auth.required
+def setFilamentOld(amsIndex, trayIndex):
     '''
     expectedKeys = ["type", "brand", "colorHex"]
     optionalKeys = ["minTemp", "maxTemp"]
@@ -137,6 +178,24 @@ def setFilament(amsIndex, trayIndex):
     if not good:
         return jsonify({"error": result})
     return jsonify({"success": result})
+
+@app.route("/setFilament", methods=['PUT', 'POST'])
+@basic_auth.required
+def setFilament():
+    try:
+        data = json.loads(request.data)
+        print(data)
+        fData = OpenSpoolBambuSlot(**data)
+    except Exception as e:
+        print(e)
+        return makeError(e.message)
+    
+    connect()
+    good, result = bambu.setFilament(fData.amsID, fData.slotID, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp)
+    if not good:
+        return jsonify({"error": result})
+    return jsonify({"success": result})
+    
     
 #if __name__ == '__main__':
     #context = ('cert.pem', 'key.pem')#certificate and key files

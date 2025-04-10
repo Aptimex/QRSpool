@@ -79,7 +79,7 @@
             if (tag) {
                 const response = await setFilamentFromTag(0, 1, tag);
                 console.log(response);
-                document.getElementById("error").innerText = response;
+                document.getElementById("error").innerText = JSON.stringify(response);
             }
         }
         
@@ -95,10 +95,14 @@
             }
             console.log(ams);
             
-            let ams0 = ams[0];
-            let slot0 = ams0.slots[1];
-            let slotObj = new AMSSlot(slot0.id, slot0.tray_type, slot0.tray_color, "testBrand", slot0.nozzle_temp_min, slot0.nozzle_temp_max, slot0.k, slot0.bed_temp);
-            slotObj.display(document.body);
+            ams.forEach((a, amsID) => {
+                let slots = a.slots
+                slots.forEach((slot, slotID) => {
+                    let slotObj = new AMSSlot(slot.id, slot.tray_type, slot.tray_color, slot.tray_sub_brands, slot.nozzle_temp_min, slot.nozzle_temp_max, slot.k, slot.bed_temp);
+                    slotObj.display(document.body, "AMS #" + amsID + " | SLOT #" + slotID);
+                });
+                
+            });
         }
         showAMS();
     </script>

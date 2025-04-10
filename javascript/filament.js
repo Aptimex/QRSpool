@@ -1,3 +1,44 @@
+class FilamentData {
+    constructor(header) {
+        this.header = header;
+    }
+    
+    //Build a table showing all the object's properties
+    display(parentEl) {
+        var tbl = document.createElement("table");
+        tbl.classList.add("table");
+        tbl.classList.add("table-striped");
+        tbl.classList.add("table-bordered");
+        const {...iterableSelf} = this;
+        
+        Object.entries(iterableSelf).forEach(([k, v]) => {
+            if (k == "colorHex") {
+                v = v.substring(0,6);
+            }
+            let tr = tbl.insertRow();
+            tr.setAttribute("scope","row");
+            
+            let td = tr.insertCell();
+            td.setAttribute("scope","col");
+            
+            let th = document.createElement("th");
+            tr.insertBefore(th, td);
+            
+            th.innerText = k;
+            td.innerText = v;
+            if (k == "colorHex") {
+                let box = document.createElement("div");
+                box.style.backgroundColor = '#' + v;
+                box.classList.add("color-box");
+                td.appendChild(box);
+            }
+        });
+        
+        parentEl.appendChild(tbl);
+        //console.log(tbl);
+    }
+}
+
 class FilamentOpenTag {
     constructor() {
         this.tagVersion = "";   //5
@@ -54,6 +95,24 @@ class FilamentOpenSpool {
         this.maxTemp = maxTemp;
     }
     
+    /*
+    constructor(formatObj, dataObj) {
+        this.header = formatObj.header;
+        fields = formatObj.fields;
+        if (fields.length != dataObj.items().length) {
+            //TODO
+            return
+        }
+        
+        fields.forEach((name, i) => {
+            if (name == "header") { 
+                continue;
+            }
+            this[name] = dataObj[i];
+        });
+    }
+    */
+    
     static newEmpty() {
         return new FilamentOpenSpool("", "", "", "", "");
     }
@@ -89,7 +148,37 @@ class FilamentOpenSpool {
     }
     
     display(parentEl) {
-        return
+        var tbl = document.createElement("table");
+        tbl.classList.add("table");
+        tbl.classList.add("table-striped");
+        tbl.classList.add("table-bordered");
+        const {...iterableSelf} = this;
+        
+        Object.entries(iterableSelf).forEach(([k, v]) => {
+            if (k == "colorHex") {
+                v = v.substring(0,6);
+            }
+            let tr = tbl.insertRow();
+            tr.setAttribute("scope","row");
+            
+            let td = tr.insertCell();
+            td.setAttribute("scope","col");
+            
+            let th = document.createElement("th");
+            tr.insertBefore(th, td);
+            
+            th.innerText = k;
+            td.innerText = v;
+            if (k == "colorHex") {
+                let box = document.createElement("div");
+                box.style.backgroundColor = '#' + v;
+                box.classList.add("color-box");
+                td.appendChild(box);
+            }
+        });
+        
+        parentEl.appendChild(tbl);
+        //console.log(tbl);
     }
     
     // Return the data that should be placed in a QR code
@@ -117,11 +206,21 @@ class AMSSlot {
         this.bedTemp = bedTemp;
     }
     
-    display(parentEl) {
+    display(parentEl, title=null) {
         var tbl = document.createElement("table");
         tbl.classList.add("table");
         tbl.classList.add("table-striped");
         tbl.classList.add("table-bordered");
+        if (title != null) {
+            let tr = tbl.insertRow();
+            tr.setAttribute("scope","row");
+            let th = document.createElement("th");
+            th.colSpan = 2;
+            th.style.textAlign = "center";
+            th.classList.add("h2");
+            th.innerText = title;
+            tr.appendChild(th);
+        }
         const {...iterableSelf} = this;
         
         Object.entries(iterableSelf).forEach(([k, v]) => {
