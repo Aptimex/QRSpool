@@ -139,16 +139,18 @@ def getSlots():
     
     amsh = PRINTER.ams_hub()
     slots = []
-    for id, ams in amsh.ams_hub.items():
-        amsID = id
-        
-        for id, tray in ams.filament_trays.items():
+    for amsID, ams in amsh.ams_hub.items():
+        for slotID, tray in ams.filament_trays.items():
             # Start by just copying all the tray/slot data returned by the printer
             slot = tray.__dict__.copy()
             
             # Asign unique identifiers
-            slot["amsID"] = amsID
-            slot["slotID"] = id
+            #slot["amsID"] = amsID
+            #slot["slotID"] = id
+            slot["ids"] = {
+                "amsID": amsID,
+                "slotID": slotID,
+            }
             
             # Map important internal values to more user-friendly (display) values
             slot["type"] = tray.tray_type
@@ -157,12 +159,13 @@ def getSlots():
             slot["minTemp"] = tray.nozzle_temp_min
             slot["maxTemp"] = tray.nozzle_temp_max
             slot["bedTemp"] = tray.bed_temp
+            slot["displayID"] = f"AMS #{amsID} | Slot #{int(slotID)+1}"
             
             slots.append(slot)
 
     resp = {
         "slots": slots,
-        "slotIDKeys": ["amsID", "slotID"],
+        #"slotIDKeys": ["amsID", "slotID"],
         "displayKeys": ["type", "colorHex", "brand", "minTemp", "maxTemp", "k", "bedTemp"],
         "colorHexKeys": ["colorHex"],
     }

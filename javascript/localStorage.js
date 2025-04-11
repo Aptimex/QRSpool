@@ -47,7 +47,6 @@ function clearAuthRequired() {
     localStorage.removeItem("authRequired");
 }
 
-//Save creds as bas64 string, ready to be put in header
 function setAuthCreds(username, password) {
     localStorage.setItem("basicAuthUser", username);
     localStorage.setItem("basicAuthPass", password);

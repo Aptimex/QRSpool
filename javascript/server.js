@@ -16,7 +16,17 @@ function getAuthHeader() {
     return "Basic " + authCred;
 }
 
-async function setFilamentFromTag(amsID, slotID, tag) {
+//Set the target slot to have the filament described in the tag
+async function setFilamentSlotFromTag(IDjson, tag=null) {
+    //Default to using the current active tag
+    if (tag == null) {
+        tag = parseActiveTag();
+        if (tag == null) {
+            return makeError("Active tag empty or invalid")
+        }
+    }
+    IDs = JSON.parse(IDjson)
+
     try {
         var fType = tag.type;
         var colorHex = tag.colorHex;
@@ -26,11 +36,12 @@ async function setFilamentFromTag(amsID, slotID, tag) {
     } catch (e) {
         return makeError("Tag object is missing expected value(s)")
     }
-    const r = await setFilament(amsID, slotID, colorHex, fType, brand, minTemp, maxTemp);
+    const r = await setFilamentSlot(IDs, colorHex, fType, brand, minTemp, maxTemp);
     return r;
 }
 
-async function setFilament(amsID, slotID, colorHex, fType, brand, minTemp, maxTemp) {
+//Set the target slot to have specified filament settings
+async function setFilamentSlot(IDs, colorHex, fType, brand, minTemp, maxTemp) {
     let server = getServer()
     if (server == null || server.length < 1) {
         return makeError("server not set")
@@ -38,14 +49,16 @@ async function setFilament(amsID, slotID, colorHex, fType, brand, minTemp, maxTe
     let url = "" + server + "/setFilament"
     
     let data = {
-        amsID: amsID,
-        slotID: slotID,
+        //amsID: amsID,
+        //slotID: slotID,
+        ids: IDs,
         type: fType,
         colorHex: colorHex,
         brand: brand,
         minTemp: minTemp,
         maxTemp: maxTemp
     };
+    console.log(data);
     
     let headers = new Headers({
         'Content-Type': 'application/json',
@@ -102,6 +115,30 @@ async function amsinfo() {
         return e.message + "; See broswer console for more details";
     }
     
+}
+
+async function getSlots() {
+    let server = getServerURL();
+    if (server == null) {
+        return makeError("Server not set or invalid URL");
+    }
+    
+    let url = "" + server + "/slots";
+    let headers = new Headers({
+        "Authorization": getAuthHeader()
+    });
+    try {
+        const response = await fetch(url, {
+            headers: headers
+        });
+        const rj = await response.json();
+        //return JSON.stringify(rj, null, 2);
+        return rj;
+        
+    } catch (e) {
+        console.log(e);
+        return makeError(e.message + "; See broswer console for more details");
+    }
 }
 
 async function getServerStatus() {

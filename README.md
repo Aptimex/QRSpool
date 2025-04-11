@@ -21,7 +21,7 @@ These values have been converted into the following string format that can be st
 OS1.0|TYPE|COLOR_HEX|BRAND|MIN_TEMP|MAX_TEMP
 ```
 
-`OS1.0` is shorthand for `openspool1.0`, and its presence at the start of the string helps the scanner identify valid QR codes so it doesn't waste time trying to process unrelated codes. 
+`OS1.0` is shorthand for `openspool1.0`, and its presence at the start of the string helps the scanner identify valid QR codes matching this modified format so it doesn't waste time trying to process unrelated codes. 
 
 The remaining fields are approximately in order of importance/necessity for configuring an AMS slot. This project will parse as many fields as are provided, allowing one or more on the end to be left off. For example, if your printer automatically configures print temperatures based on pre-configured profiles for certain types and brands, you can leave these values off. 
 
@@ -60,39 +60,34 @@ This endpoint should return the following JSON data (data in `<>` brackets shoul
 {
     "slots": [
         {
-            "<id1>": "<identifier1>",
-            "<id2>": "<identifier2>",
+            "ids": {
+                "OPAQUE": "OPAQUE"
+            },
+            "displayID": "<value>",
             "<dk1>": "<value>",
             "<dk2>": "<value>",
             "<dk3>": "<value>",
             "<otherKey>": "<value>",
         },
     ],
-    "slotIDKeys": ["<id1>", "<id2>"],
     "displayKeys": ["<dk1>", "<dk2>", "<dk3>"],
-    "colorHexKeys": ["<dk3>"],
-    "postKeys": {
-            "TYPE": "<kTYPE>", 
-            "COLOR_HEX": "<kCOLOR_HEX>", 
-            "BRAND": "<kBRAND>", 
-            "MIN_TEMP": "<kMIN_TEMP>", 
-            "MAX_TEMP": "<kMAX_TEMP>"
-        }
+    "colorHexKeys": ["<dk3>"]
 }
 ```
 - `slots` is a list of `slot` objects representing filament slots available on the printer. The keys can have any names, 
     - The server may return additional keys-value pairs in the `slot` object that do not need to be used by the client. 
-- `slotIDKeys` is a list of keys present in every `slot` object that (together) uniquely identify the slot. The client must supply ALL these keys values exactly back to the server when requesting to modify a slot. At least one value must be returned in this list. 
+- `ids` is an opaque object with data that uniquely identifies the slot. The client supplies this exact object back to the server to identify this slot, such as when requesting to modify its filament settings. The data in this slot must be able to be JSON-stringified and then parsed back to a JavaScript object without losing any ionformation. 
+- `displayID` is a string that will be displayed to help the user identify the slot from a list of available slots. 
 - `displayKeys` is a list of keys present in every `slot` object that should be displayed on the client when the user is selecting a slot to apply filament settings to. `slotIDKeys` will always be displayed and should not be included in this list. This list should usually include at least the fields (minus the `OS1.0` header) that are present in the QR codes. 
 - `colorHexKeys` is a list of keys that, IF present in a `slot` object and displayed to the user, should be interpreted by the client as a 6-digit hex color code and displayed to the user as that color. 
-- `postKeys` is used to map the values present in a QR code to the associated keys in a `slot` object. For example, `"TYPE": "filament_type"` means that the `slot.filament_type` value corresponds to the TYPE field in a QR code. TODO: do we really need this? Don't think there's any need to directly/explicitly compare stored values with scanned values. 
 
 ### /setFilament
 This endpoint accepts a JSON object describing a target filament slot and what filament to set for that slot. It should have the following format (data in `<>` brackets should be replaced with an appropriate string):
 ```json
 {
-    "<id1>": "<identifier1>",
-    "<id2>": "<identifier2>",
+    "ids": {
+        "OPAQUE": "OPAQUE"
+    },
     "type": "<value>",
     "colorHex": "<value>",
     "brand": "<value>",
@@ -126,10 +121,10 @@ The username and password can be set by the user in the `settings.html` page, an
 - [X] Figure out a data format to use for QR codes
     - Modified OpenSpool: https://openspool.io/rfid.html
     - Modified OpenTag: https://github.com/Bambu-Research-Group/RFID-Tag-Guide/blob/main/OpenTag.md#data-structure-standard
-- [ ] Document format changes for QR codes
+- [x] Document format changes for QR codes
 - [x] Find the size of printed QR codes that are scannable
     - 40mm work well with 0.4mm nozzle; 30mm might be doable with OpenSool format
-- [ ] Build a flask server that translates JSON POST requests to MQTT messages to Bambu printers
+- [x] Build a flask server that translates JSON POST requests to MQTT messages to Bambu printers
     - Figure out how to make CORS happy when phone on github site sends POST to flask
 
 ## Working notes

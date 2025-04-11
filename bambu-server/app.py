@@ -64,9 +64,10 @@ def setAuth():
         BASIC_AUTH = None
 setAuth()
 
+
 class FilamentData(object):
     def __init__(self, type, brand, colorHex, minTemp = 0, maxTemp = 0):
-        super(FilamentData, self).__init__()
+        #super(FilamentData, self).__init__()
         self.type = type
         self.brand = brand
         self.colorHex = colorHex
@@ -74,9 +75,10 @@ class FilamentData(object):
         self.maxTemp = maxTemp
 
 class OpenSpoolData(object):
-    def __init__(self, header, type, brand, colorHex, minTemp = 0, maxTemp = 0):
-        super(OpenSpoolData, self).__init__()
-        self.header = header
+    #def __init__(self, header, type, brand, colorHex, minTemp = 0, maxTemp = 0):
+    def __init__(self, type, brand, colorHex, minTemp = 0, maxTemp = 0):
+        #super(OpenSpoolData, self).__init__()
+        #self.header = header
         self.type = type
         self.brand = brand
         self.colorHex = colorHex
@@ -84,10 +86,13 @@ class OpenSpoolData(object):
         self.maxTemp = maxTemp
 
 class OpenSpoolBambuSlot(OpenSpoolData):
-    def __init__(self, amsID, slotID, header, type, brand, colorHex, minTemp = 0, maxTemp = 0):
-        super(OpenSpoolData, self).__init__(header, type, brand, colorHex, minTemp, maxTemp)
-        self.amsId = amsID
-        self.slotId = slotID
+    #def __init__(self, ids, header, type, brand, colorHex, minTemp = 0, maxTemp = 0):
+    def __init__(self, ids, type, brand, colorHex, minTemp = 0, maxTemp = 0):
+        #super(OpenSpoolData, self).__init__(header, type, brand, colorHex, minTemp, maxTemp)
+        super().__init__(type, brand, colorHex, minTemp, maxTemp)
+        self.amsID = ids["amsID"]
+        self.slotID = ids["slotID"]
+        self.displayID = f"AMS #{self.amsID} | Slot #{self.slotID}"
     
 
 @app.route("/")
@@ -179,6 +184,7 @@ def setFilamentOld(amsIndex, trayIndex):
         return jsonify({"error": result})
     return jsonify({"success": result})
 
+
 @app.route("/setFilament", methods=['PUT', 'POST'])
 @basic_auth.required
 def setFilament():
@@ -188,9 +194,10 @@ def setFilament():
         fData = OpenSpoolBambuSlot(**data)
     except Exception as e:
         print(e)
-        return makeError(e.message)
+        return makeError(str(e))
     
     connect()
+    #print(fData.__dict__)
     good, result = bambu.setFilament(fData.amsID, fData.slotID, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp)
     if not good:
         return jsonify({"error": result})
