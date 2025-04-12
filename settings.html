@@ -7,6 +7,7 @@
 
         <script src="javascript/localStorage.js"></script>
         <script src="javascript/server.js"></script>
+        <script src="javascript/nav.js"></script>
 
         <link rel="stylesheet" href="./css/global.css">
         <style media="screen">
@@ -22,7 +23,10 @@
     </head>
     
     <body>
-        <a href="/">Home</a>
+        <div id="navPlaceholder">
+            <script>insertNav(document.querySelector("#navPlaceholder"))</script>
+        </div>
+
         <h1>Settings</h1>
         
         <div class="mb-3">
