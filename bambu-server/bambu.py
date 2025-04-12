@@ -14,7 +14,7 @@ from bambu_config import IP, SERIAL, ACCESS_CODE
 def getKnownFilaments(path = "./bambu-ams-codes.json"):
     with open(path, "r") as f:
         codes = json.loads(f.read())
-    print(f"Loaded {len(codes)} filament codes")
+    #print(f"Loaded {len(codes)} filament codes")
     return codes
 CODES = getKnownFilaments()
 PRINTER = bl.Printer(IP, ACCESS_CODE, SERIAL)
