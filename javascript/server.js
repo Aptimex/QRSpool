@@ -92,63 +92,17 @@ function getServerURL() {
     return server;
 }
 
-async function amsinfo() {
-    let server = getServerURL();
-    if (server == null) {
-        return "error: Server not set or invalid URL";
-    }
-    
-    let url = "" + server + "/amsinfo";
-    let headers = new Headers({
-        "Authorization": getAuthHeader()
-    });
-    try {
-        const response = await fetch(url, {
-            headers: headers
-        });
-        const rj = await response.json();
-        return JSON.stringify(rj, null, 2);
-        
-    } catch (e) {
-        //return JSON.stringify(makeError(e));
-        console.log(e);
-        return e.message + "; See broswer console for more details";
-    }
-    
-}
-
-async function getSlots() {
-    let server = getServerURL();
-    if (server == null) {
-        return makeError("Server not set or invalid URL");
-    }
-    
-    let url = "" + server + "/slots";
-    let headers = new Headers({
-        "Authorization": getAuthHeader()
-    });
-    try {
-        const response = await fetch(url, {
-            headers: headers
-        });
-        const rj = await response.json();
-        //return JSON.stringify(rj, null, 2);
-        return rj;
-        
-    } catch (e) {
-        console.log(e);
-        return makeError(e.message + "; See broswer console for more details");
-    }
-}
-
-async function getServerStatus() {
+//Send a GET request to the server and return JSON response converted to an object
+//On error, returns an object with an "error" key describing the issue
+//route should start with / and is relative to the saved server URL
+async function serverGETjson(route) {
     let server = getServerURL();
     if (server == null) {
         return makeError("Server not set or invalid URL");
     }
     var r;
     
-    let url = "" + server + "/serverStatus";
+    let url = "" + server + route;
     let headers = new Headers({
         "Authorization": getAuthHeader()
     });
@@ -168,5 +122,21 @@ async function getServerStatus() {
         console.log(e);
         return makeError("Unable to get server response: " + e.message);
     }
-    
+}
+
+async function amsinfo() {
+    return await serverGETjson("/amsinfo")
+}
+
+async function getSlots() {
+    return await serverGETjson("/slots")
+}
+
+async function getServerStatus() {
+    //This route doesn't require auth, but using it won't hurt. 
+    return await serverGETjson("/serverStatus")
+}
+
+async function getPrinterStatus() {
+    return await serverGETjson("/printerStatus")
 }
