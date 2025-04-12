@@ -1,44 +1,3 @@
-class FilamentData {
-    constructor(header) {
-        this.header = header;
-    }
-    
-    //Build a table showing all the object's properties
-    display(parentEl) {
-        var tbl = document.createElement("table");
-        tbl.classList.add("table");
-        tbl.classList.add("table-striped");
-        tbl.classList.add("table-bordered");
-        const {...iterableSelf} = this;
-        
-        Object.entries(iterableSelf).forEach(([k, v]) => {
-            if (k == "colorHex") {
-                v = v.substring(0,6);
-            }
-            let tr = tbl.insertRow();
-            tr.setAttribute("scope","row");
-            
-            let td = tr.insertCell();
-            td.setAttribute("scope","col");
-            
-            let th = document.createElement("th");
-            tr.insertBefore(th, td);
-            
-            th.innerText = k;
-            td.innerText = v;
-            if (k == "colorHex") {
-                let box = document.createElement("div");
-                box.style.backgroundColor = '#' + v;
-                box.classList.add("color-box");
-                td.appendChild(box);
-            }
-        });
-        
-        parentEl.appendChild(tbl);
-        //console.log(tbl);
-    }
-}
-
 // Example QR data format: openspool1.0|PLA|0a2b3c|SomeBrand|210|230
 class FilamentOpenSpool {
     //static protocol = "openspool";
@@ -136,61 +95,67 @@ class FilamentOpenSpool {
     }
 }
 
+//TODO: Make this accept arbitrary data
 class FilamentSlot {
-    constructor(ids, displayID, type, colorHex, brand, minTemp, maxTemp, k, bedTemp) {
+    constructor(ids, displayID, displayKeys, colorHexKeys, data) {
         //id MUST be present and MUSt be an object containing the ID values
-        this.ids = ids; 
-        this.displayID = displayID;
+        this.ids = ids; //opaque object
+        this.displayID = displayID; //string
+        this.data = data; //object
 
-        //All these can be changed/deleted and this.display() will still work
-        //All these values are assumed to be strings or integers
-        this.type = type;
-        this.colorHex = colorHex; //this key name will cause a color box to be displayed
-        this.brand = brand;
-        this.minTemp = minTemp;
-        this.maxTemp = maxTemp;
-        this.k = k;
-        this.bedTemp = bedTemp;
+        this.displayKeys = displayKeys;
+        this.colorHexKeys = colorHexKeys;
     }
     
     //Dynamically construct a table that displays the slot info stored in this object
     //Table will be inserted as a child of the parentEl DOM element
     display(parentEl, applyButton=true) {
         var tbl = document.createElement("table");
-        tbl.classList.add("table", "table-striped", "table-bordered", "border-3", "rounded-5");
+        tbl.classList.add("table", "table-striped", "table-bordered", "border", "border-dark", "border-5", "rounded-5", "overflow-hidden");
+        tbl.style["border-top-right-radius"] = "15px";
+        tbl.style["border-top-left-radius"] = "15px";
 
         //Title
         let tr = tbl.insertRow();
-        tr.setAttribute("scope","row");
-        let th = document.createElement("th");
+        var th = document.createElement("th");
+        tr.appendChild(th);
+        
         th.colSpan = 2;
         th.style.textAlign = "center";
         th.classList.add("h2");
         th.innerText = this.displayID;
-        tr.appendChild(th);
+
+        //Add a button for applying the current filament tag to this slot. 
+        if (applyButton) {
+            let apply = document.createElement("button");
+            apply.innerText = "Apply tag to this slot";
+            apply.classList.add("btn", "btn-primary");
+            apply.dataset.ids = JSON.stringify(this.ids);
+            apply.onclick = function() {
+                setFilamentSlotFromTag(this.dataset.ids);
+                //TODO: refresh the page
+            }
+            th.appendChild(document.createElement("br"));
+            th.appendChild(apply);
+        }
         
         //Make an iterable version of this object
-        const {...iterableSelf} = this;
+        //const {...iterableSelf} = this;
         
-        Object.entries(iterableSelf).forEach(([k, v]) => {
-            //We handle displaying these specific values separately
-            if (k == "ids" || k == "displayID") {
-                //v = this.idToString();
-                return; //same effect as 'continue'
-            }
+        //Display all data fields that match a displayKeys key
+        this.displayKeys.forEach(k => {
+            let v = this.data[k];
 
             let tr = tbl.insertRow();
-            tr.setAttribute("scope","row");
-            
-            let td = tr.insertCell();
-            td.setAttribute("scope","col");
-            
             let th = document.createElement("th");
-            tr.insertBefore(th, td);
+            tr.appendChild(th);
+            let td = tr.insertCell();
             
             th.innerText = k;
             td.innerText = v;
-            if (k == "colorHex") {
+            
+            //Render color box if appropriate
+            if (this.colorHexKeys.includes(k)) {
                 let box = document.createElement("div");
                 box.style.backgroundColor = '#' + v;
                 box.classList.add("color-box");
@@ -198,26 +163,34 @@ class FilamentSlot {
             }
         });
 
-        //Add a button for applying the current filament tag to this slot. 
-        if (applyButton) {
+        //Optional More info, show everything else in the data object
+        let moreID = "M" + Math.random().toString(32).slice(2); //easy unique alphanumeric string generator
+        tr = tbl.insertRow();
+        th = document.createElement("th");
+        tr.appendChild(th);
+        th.colSpan = 2;
+        th.style.textAlign = "center";
+        
+        //The entire col triggers extra data collapse
+        th.innerText = "↓ Show/Hide All Slot Info ↓";
+        th.setAttribute("data-bs-toggle", "collapse");
+        th.setAttribute("data-bs-target", `.${moreID}`);
+
+        for (const [k, v] of Object.entries(this.data)) {
+            if (this.displayKeys.includes(k)) {
+                continue
+            }
+
             let tr = tbl.insertRow();
-            tr.setAttribute("scope","row");
-
+            let th = document.createElement("th");
+            tr.appendChild(th);
             let td = tr.insertCell();
-            td.colSpan = 2;
-            td.style.textAlign = "center";
-
-            let apply = document.createElement("button");
-            apply.innerText = "Apply tag to this slot";
-            apply.classList.add("btn", "btn-primary");
-            apply.dataset.ids = JSON.stringify(this.ids);
-            apply.onclick = function() {
-                setFilamentSlotFromTag(this.dataset.ids); 
-            } 
-            td.appendChild(apply);
-        }
+            
+            tr.classList.add("collapse", `${moreID}`);
+            th.innerText = k;
+            td.innerText = v;
+        };
         parentEl.appendChild(tbl);
-        //console.log(tbl);
     }
 }
 
@@ -247,20 +220,4 @@ function parseActiveTag() {
 
 function activateTag(tag) {
     setActiveTagData(tag.toDataString());
-}
-
-function displayOpenSpoolTag(tag) {
-    if (! tag instanceof FilamentOpenSpool) {
-        console.log("Tag is not an instance of the FilamentOpenSpool class")
-        return
-    }
-    document.getElementById("protocol").innerText = ""  + tag.displayProtocol;
-    document.getElementById("type").innerText = tag.type;
-    document.getElementById("colorHex").innerText = tag.colorHex;
-    document.getElementById("brand").innerText = tag.brand;
-    document.getElementById("minTemp").innerText = tag.minTemp;
-    document.getElementById("maxTemp").innerText = tag.maxTemp;
-    
-    //document.getElementById("colorHexDisplay").style.backgroundColor = "#" + tag.colorHex;
-    document.getElementById("tagColorDisplay").style.backgroundColor = "#" + tag.colorHex;
 }

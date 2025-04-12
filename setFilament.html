@@ -28,9 +28,6 @@
         <div id="filamentSlots">
             <h1>Available Filament Slots</h2>
         </div>
-        
-        <button type="button" name="applyFilament" onclick="applyTag()">Apply Filament</button>
-        <br><br>
     </body>
     
     <script type="text/javascript">
@@ -40,16 +37,6 @@
             tag.display(document.querySelector("#savedFilamentTag"));
         }
         
-        //Just a test function right now
-        async function applyTag() {
-            let tag = parseActiveTag();
-            if (tag) {
-                const response = await setFilamentFromTag(0, 1, tag);
-                console.log(response);
-                document.querySelector("#error").innerText = JSON.stringify(response);
-            }
-        }
-        
         async function showFilamentSlots() {
             let slots = await getSlots();
             console.log(slots);
@@ -57,16 +44,11 @@
                 let slotObj = new FilamentSlot(
                     slot.ids, 
                     slot.displayID,
-                    slot.tray_type, 
-                    slot.tray_color, 
-                    slot.tray_sub_brands, 
-                    slot.nozzle_temp_min, 
-                    slot.nozzle_temp_max, 
-                    slot.k, 
-                    slot.bed_temp
+                    slots.displayKeys,
+                    slots.colorHexKeys,
+                    slot //data
                 );
-                
-                //slotObj.display(document.querySelector("#filamentSlots"), "AMS #" + slotObj.ids.amsID + " | SLOT #" + slotObj.ids.slotID);
+
                 slotObj.display(document.querySelector("#filamentSlots"));
             });
         }

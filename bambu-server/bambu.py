@@ -152,13 +152,21 @@ def getSlots():
                 "slotID": slotID,
             }
             
+            brand = "Generic"
+            currentCode = tray.tray_info_idx
+            for name, code in getKnownFilaments().items():
+                if code == currentCode:
+                    brand = name.split()[0]
+                    break
+
+            
             # Map important internal values to more user-friendly (display) values
-            slot["type"] = tray.tray_type
-            slot["colorHex"] = tray.tray_color[:6]
-            slot["brand"] = tray.tray_sub_brands
-            slot["minTemp"] = tray.nozzle_temp_min
-            slot["maxTemp"] = tray.nozzle_temp_max
-            slot["bedTemp"] = tray.bed_temp
+            slot["Type"] = tray.tray_type
+            slot["Color"] = tray.tray_color[:6]
+            slot["Brand"] = brand
+            slot["Min Temp"] = tray.nozzle_temp_min
+            slot["Max Temp"] = tray.nozzle_temp_max
+            slot["Bed Temp"] = tray.bed_temp
             slot["displayID"] = f"AMS #{amsID} | Slot #{int(slotID)+1}"
             
             slots.append(slot)
@@ -166,8 +174,8 @@ def getSlots():
     resp = {
         "slots": slots,
         #"slotIDKeys": ["amsID", "slotID"],
-        "displayKeys": ["type", "colorHex", "brand", "minTemp", "maxTemp", "k", "bedTemp"],
-        "colorHexKeys": ["colorHex"],
+        "displayKeys": ["Type", "Color", "Brand", "Min Temp", "Max Temp", "k", "Bed Temp"],
+        "colorHexKeys": ["Color"],
     }
     
     return resp

@@ -71,16 +71,14 @@ function tick() {
 }
 
 if (getServer() != null) {
-    //document.getElementById("targetServer").innerText = localStorage.getItem("backendServer");
-    document.getElementById("targetServer").innerText = getServer();
+    document.querySelector("#targetServer").innerText = getServer();
 }
 
 function handleData(data) {
-    let tag = parseOpenSpool(data);
+    let tag = parseOpenSpool(data); //TODO: use tag class directly
     if (tag != null) {
         outputMessageP.hidden = true;
         outputDataP.innerText = data;
-        //displayOpenSpoolTag(tag);
         activateTag(tag);
         window.location.href = "/setFilament.html"
     }
