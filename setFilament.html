@@ -28,6 +28,10 @@
         <div id="filamentSlots">
             <h1>Available Filament Slots</h2>
         </div>
+
+        <div class="alert alert-info error-div collapse.show" role="alert">
+            <span id="slotError">Querying server for slot data, please wait...</span>
+        </div>
     </body>
     
     <script type="text/javascript">
@@ -38,19 +42,41 @@
         }
         
         async function showFilamentSlots() {
-            let slots = await getSlots();
-            console.log(slots);
-            slots.slots.forEach((slot, i) => {
-                let slotObj = new FilamentSlot(
-                    slot.ids, 
-                    slot.displayID,
-                    slots.displayKeys,
-                    slots.colorHexKeys,
-                    slot //data
-                );
+            let slotData = await getSlots();
+            console.log(slotData);
 
-                slotObj.display(document.querySelector("#filamentSlots"));
-            });
+            var errorBox = document.querySelector("#slotError");
+            var errorParent = errorBox.parentElement;
+
+            try {
+                //Display slot data
+                slotData.slots.forEach((slot, i) => {
+                    let slotObj = new FilamentSlot(
+                        slot.ids, 
+                        slot.displayID,
+                        slotData.displayKeys,
+                        slotData.colorHexKeys,
+                        slot //all data for the slot
+                    );
+
+                    errorParent.classList.add("collapse");
+                    slotObj.display(document.querySelector("#filamentSlots"));
+                });
+
+            } catch (e) {
+                try {
+                    //See if server sent an explicit error
+                    var err = slotData.error;
+                } catch (e2) {
+                    //unexpected server response
+                    err = e.message; //want the first exception info
+                }
+                errorBox.innerText = err;
+                errorParent.classList.remove("alert-info");
+                errorParent.classList.add("alert-warning");
+                console.log(slotData);
+                return;
+            }
         }
         showFilamentSlots();
     </script>
