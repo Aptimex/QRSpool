@@ -12,6 +12,10 @@ var outputContainerP = document.getElementById("outputP");
 var outputMessageP = document.getElementById("outputMessageP");
 var outputDataP = document.getElementById("outputDataP");
 
+var camTrack = null;
+var isTorchOn = false;
+var torchStartsOn = getTorchStart();
+
 function drawLine(begin, end, color) {
   canvas.beginPath();
   canvas.moveTo(begin.x, begin.y);
@@ -27,11 +31,14 @@ navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).th
   video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
   video.play();
   
-  //Try to toggle phone torch for easier QR reading
-  const track = stream.getVideoTracks()[0];
-  track.applyConstraints({
-      advanced: [{torch: true}]
-  });
+  camTrack = stream.getVideoTracks()[0];
+  if (torchStartsOn) {
+    //Try to enable phone torch for easier QR reading
+    camTrack.applyConstraints({
+        advanced: [{torch: true}]
+    });
+    isTorchOn = true;
+  }
   
   
   requestAnimationFrame(tick);
@@ -68,6 +75,26 @@ function tick() {
     }
   }
   requestAnimationFrame(tick);
+}
+
+function toggleTorch() {
+  if (camTrack == null) {
+    return;
+  }
+
+  if (isTorchOn) {
+    camTrack.applyConstraints({
+      advanced: [{torch: false}]
+    });
+    isTorchOn = false;
+    console.log("Torch Off")
+  } else {
+    camTrack.applyConstraints({
+      advanced: [{torch: true}]
+    });
+    isTorchOn = true;
+    console.log("Torch ON")
+  }
 }
 
 if (getServer() != null) {

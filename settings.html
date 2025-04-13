@@ -49,7 +49,7 @@
             <button class="btn btn-primary btn-sm" type="button" name="save", onclick="saveServerInfo()">
                 Save 
             </button>
-            <button class="btn btn-warning btn-sm" type="button" name="clear", onclick="clearServerInfo(); showServerData()">
+            <button class="btn btn-warning btn-sm" type="button" name="clear", onclick="clearServerInfo(); showLocalSettings()">
                 Clear 
             </button>
             <button class="btn btn-info btn-sm" type="button" name="clear", onclick="if (getServer()) {window.open(getServer())}">
@@ -102,6 +102,13 @@
                 <th>Creds are valid?</th><td scope="col" id="showGoodCreds"></td>
             </tr>
         </table>
+
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="" id="torchStartCheckbox" onclick="setTorchStart(this.checked)">
+            <label class="form-check-label" for="torchStartCheckbox">
+                Turn on phone torch (LED) when camera starts
+            </label>
+        </div>
     </body>
     
     <script type="text/javascript">
@@ -116,10 +123,10 @@
         function clearServerInfo() {
             clearServer(); 
             clearAuthCred();
-            showServerData()
+            showLocalSettings()
         }
     
-        function showServerData() {
+        function showLocalSettings() {
             let s = getServer();
             if (s != null) {
                 document.querySelector('#serverLoc').value = s;
@@ -140,8 +147,15 @@
             } else {
                 document.querySelector('#serverPass').value = "";
             }
+
+            let ts = getTorchStart();
+            if (! ts) {
+                document.querySelector('#torchStartCheckbox').removeAttribute("checked");
+            } else {
+                document.querySelector('#torchStartCheckbox').setAttribute("checked", "");
+            }
         }
-        showServerData();
+        showLocalSettings();
         
         function showAuthRequired(isCredGood) {
             document.querySelector('#showAuthRequired').innerText = (

@@ -75,9 +75,9 @@
 
   <h1>FilamentQR</h1>
   <!-- a id="githubLink" href="https://github.com/cozmo/jsQR">Modified from the jsQR demo</a -->
-  <p>Scan a filament QR code</p>
+  <p>Scan a filament QR code (tap/click video to toggle phone torch, if supported)</p>
   <div id="loadingMessage">🎥 Unable to access video stream (please make sure you have a webcam enabled)</div>
-  <canvas id="canvas" hidden></canvas>
+  <canvas id="canvas" hidden onclick="toggleTorch()"></canvas>
   <div id="output" hidden>
     <div id="outputMessage">No QR code detected.</div>
     <div hidden><b>Data:</b> <span id="outputData"></span></div>

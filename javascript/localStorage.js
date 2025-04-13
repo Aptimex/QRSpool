@@ -74,3 +74,17 @@ function clearAuthCreds() {
     localStorage.removeItem("basicAuthUser");
     localStorage.removeItem("basicAuthPass");
 }
+
+//Torch
+function setTorchStart(tBool) {
+    localStorage.setItem("torchStartsOn", tBool);
+}
+
+function getTorchStart() {
+    let ts = localStorage.getItem("torchStartsOn");
+    if (! ts || ts == "false") {
+        return false;
+    } else {
+        return true;
+    }
+}
