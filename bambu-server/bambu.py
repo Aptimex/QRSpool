@@ -18,6 +18,8 @@ def getKnownFilaments(path = "./bambu-ams-codes.json"):
     return codes
 CODES = getKnownFilaments()
 PRINTER = bl.Printer(IP, ACCESS_CODE, SERIAL)
+EXTERNAL_SPOOL_AMSID = 255
+EXTERNAL_SPOOL_SLOTID = 254
 
 def connect():
     # Connect to the BambuLab 3D printer
@@ -132,6 +134,44 @@ def getPrinterStatus():
         "status": PRINTER.get_state()
     }
 
+def trayToSlot(amsID, slotID, tray):
+    # Start by just copying all the tray/slot data returned by the printer
+    slot = tray.__dict__.copy()
+    
+    # Asign unique identifiers
+    #slot["amsID"] = amsID
+    #slot["slotID"] = id
+    slot["ids"] = {
+        "amsID": amsID,
+        "slotID": slotID,
+    }
+    
+    brand = "Generic"
+    currentCode = tray.tray_info_idx
+    for name, code in getKnownFilaments().items():
+        if code == currentCode:
+            brand = name.split()[0]
+            break
+
+    
+    # Map important internal values to more user-friendly (display) values
+    t = tray.tray_type
+    if (tray.tray_sub_brands and tray.tray_sub_brands != ""):
+        t += f" ({tray.tray_sub_brands})"
+    slot["Type"] = t
+    slot["Color"] = tray.tray_color[:6]
+    slot["Brand"] = brand
+    slot["Min Temp"] = tray.nozzle_temp_min
+    slot["Max Temp"] = tray.nozzle_temp_max
+    slot["Bed Temp"] = tray.bed_temp
+    if (amsID == EXTERNAL_SPOOL_AMSID and slotID == EXTERNAL_SPOOL_SLOTID):
+        slot["displayID"] = f"External Spool (no AMS)"
+    else:
+        slot["displayID"] = f"AMS #{amsID} | Slot #{int(slotID)+1}"
+    
+    return slot
+        
+
 def getSlots():
     error = ensureConnected()
     if error:
@@ -141,39 +181,16 @@ def getSlots():
     slots = []
     for amsID, ams in amsh.ams_hub.items():
         for slotID, tray in ams.filament_trays.items():
-            # Start by just copying all the tray/slot data returned by the printer
-            slot = tray.__dict__.copy()
-            
-            # Asign unique identifiers
-            #slot["amsID"] = amsID
-            #slot["slotID"] = id
-            slot["ids"] = {
-                "amsID": amsID,
-                "slotID": slotID,
-            }
-            
-            brand = "Generic"
-            currentCode = tray.tray_info_idx
-            for name, code in getKnownFilaments().items():
-                if code == currentCode:
-                    brand = name.split()[0]
-                    break
-
-            
-            # Map important internal values to more user-friendly (display) values
-            slot["Type"] = tray.tray_type
-            slot["Color"] = tray.tray_color[:6]
-            slot["Brand"] = brand
-            slot["Min Temp"] = tray.nozzle_temp_min
-            slot["Max Temp"] = tray.nozzle_temp_max
-            slot["Bed Temp"] = tray.bed_temp
-            slot["displayID"] = f"AMS #{amsID} | Slot #{int(slotID)+1}"
-            
+            slot = trayToSlot(amsID, slotID, tray)
             slots.append(slot)
+    
+    externalTray = PRINTER.vt_tray()
+    slot = trayToSlot(EXTERNAL_SPOOL_AMSID, EXTERNAL_SPOOL_SLOTID, externalTray)
+    slots.append(slot)
+    
 
     resp = {
         "slots": slots,
-        #"slotIDKeys": ["amsID", "slotID"],
         "displayKeys": ["Type", "Color", "Brand", "Min Temp", "Max Temp", "k", "Bed Temp"],
         "colorHexKeys": ["Color"],
     }
