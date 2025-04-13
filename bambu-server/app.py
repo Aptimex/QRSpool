@@ -135,54 +135,12 @@ def serverStatus():
 def printerStatus():
     return jsonify(bambu.getPrinterStatus())
 
-@app.route("/amsinfo")
-@basic_auth.required
-def AMSInfo():
-    connect()
-    p = bambu.getAMSInfo()
-    return jsonify(p)
-
 @app.route("/slots")
 @basic_auth.required
-def getAMSInfo():
+def getSlots():
     connect()
     p = bambu.getSlots()
     return jsonify(p)
-    
-
-@app.route("/setFilamentOld/<amsIndex>/<trayIndex>", methods=['PUT', 'POST'])
-@basic_auth.required
-def setFilamentOld(amsIndex, trayIndex):
-    '''
-    expectedKeys = ["type", "brand", "colorHex"]
-    optionalKeys = ["minTemp", "maxTemp"]
-    
-    try:
-        data = json.loads(request.data)
-    except Exception as e:
-        return makeError(e)
-    
-    for ek in expectedKeys:
-        if ek not in data.keys():
-            return makeError(f"Missing expected data '{ek}'")
-    fType = data["type"]
-    fBrand = data["brand"]
-    fColor = data["colorHex"]
-    '''
-    
-    try:
-        data = json.loads(request.data)
-        print(data)
-        fData = FilamentData(**data)
-    except Exception as e:
-        print(e)
-        return makeError(e.message)
-    
-    connect()
-    good, result = bambu.setFilament(amsIndex, trayIndex, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp)
-    if not good:
-        return jsonify({"error": result})
-    return jsonify({"success": result})
 
 
 @app.route("/setFilament", methods=['PUT', 'POST'])
@@ -199,15 +157,19 @@ def setFilament():
     connect()
     #print(fData.__dict__)
     good, result = bambu.setFilament(fData.amsID, fData.slotID, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp)
+    
+    # For some reason the printer won't return changed AMS data unless a new connection is established, so proactively disconnect
+    disconnect()
+    # Takes ~5s for new filament change to take effect, so proactively wait
+    time.sleep(5)
+
     if not good:
         return jsonify({"error": result})
     return jsonify({"success": result})
-    
-    
-#if __name__ == '__main__':
-    #context = ('cert.pem', 'key.pem')#certificate and key files
-    #app.run(debug=True, ssl_context=context)
-    
-    
-    
-    
+
+@app.route("/reconnect")
+@basic_auth.required
+def reconnect():
+    disconnect()
+    connect()
+    return jsonify({"info": "reconnect triggered"})

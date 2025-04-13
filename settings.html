@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
     <head>
-        <title>Setup</title>
+        <title>Settings</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -183,7 +183,6 @@
         
         function validateServer() {
             document.querySelector('#validateResult').innerText = "Querying server, please wait...";
-            //amsinfo().then(r => document.getElementById('validateResult').innerText = r);
             
             getServerStatus().then(s => {
                 try {

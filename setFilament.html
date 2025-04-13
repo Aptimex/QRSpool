@@ -9,7 +9,7 @@
         <script src="javascript/nav.js"></script>
         
         <link rel="stylesheet" href="./css/global.css">
-        <title>Set Filament</title>
+        <title>Apply Tag</title>
         
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
     </head>
@@ -21,20 +21,24 @@
         <p id="error"></p>
         
         <h1>Scanned Tag</h1>
-        
         <div id="savedFilamentTag">
-
         </div>
 
         <br>
         <br>
 
+        <h1>Available Filament Slots</h2>
+        <p>
+            Missing AMS slots?
+            <button class="btn btn-secondary btn-sm" type="button" name="reconnect", onclick="serverPrinterReconnect(); showFilamentSlots()">
+                Force Printer Refresh
+            </button>
+        </p>
         <div id="filamentSlots">
-            <h1>Available Filament Slots</h2>
         </div>
 
         <div class="alert alert-info error-div collapse.show" role="alert">
-            <span id="slotError">Querying server for slot data, please wait...</span>
+            <span id="slotError"></span>
         </div>
     </body>
     
@@ -46,11 +50,17 @@
         }
         
         async function showFilamentSlots() {
-            let slotData = await getSlots();
-            console.log(slotData);
+            //Clear any existing slot data
+            document.querySelector("#filamentSlots").innerHTML = "";
 
             var errorBox = document.querySelector("#slotError");
             var errorParent = errorBox.parentElement;
+            errorParent.classList.remove("alert-warning", "collapse");
+            errorParent.classList.add("collapse.show", "alert-info");
+            errorBox.innerText = "Querying server for slot data, please wait...";
+            
+            let slotData = await getSlots();
+            console.log(slotData);
 
             try {
                 //Display slot data
@@ -76,8 +86,8 @@
                     err = e.message; //want the first exception info
                 }
                 errorBox.innerText = err;
-                errorParent.classList.remove("alert-info");
-                errorParent.classList.add("alert-warning");
+                errorParent.classList.remove("alert-info", "collapse");
+                errorParent.classList.add("alert-warning", "collapse.show");
                 console.log(slotData);
                 return;
             }

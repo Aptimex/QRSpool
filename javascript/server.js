@@ -124,19 +124,19 @@ async function serverGETjson(route) {
     }
 }
 
-async function amsinfo() {
-    return await serverGETjson("/amsinfo")
-}
-
 async function getSlots() {
-    return await serverGETjson("/slots")
+    return await serverGETjson("/slots");
 }
 
 async function getServerStatus() {
     //This route doesn't require auth, but using it won't hurt. 
-    return await serverGETjson("/serverStatus")
+    return await serverGETjson("/serverStatus");
 }
 
 async function getPrinterStatus() {
-    return await serverGETjson("/printerStatus")
+    return await serverGETjson("/printerStatus");
+}
+
+async function serverPrinterReconnect() {
+    console.log(await serverGETjson("/reconnect"));
 }

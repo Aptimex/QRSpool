@@ -95,10 +95,8 @@ class FilamentOpenSpool {
     }
 }
 
-//TODO: Make this accept arbitrary data
 class FilamentSlot {
     constructor(ids, displayID, displayKeys, colorHexKeys, data) {
-        //id MUST be present and MUSt be an object containing the ID values
         this.ids = ids; //opaque object
         this.displayID = displayID; //string
         this.data = data; //object
@@ -131,12 +129,16 @@ class FilamentSlot {
             apply.innerText = "Apply tag to this slot";
             apply.classList.add("btn", "btn-primary");
             apply.dataset.ids = JSON.stringify(this.ids);
-            apply.onclick = function() {
-                setFilamentSlotFromTag(this.dataset.ids);
-                //TODO: refresh the page
+            apply.onclick = async function() {
+                this.parentElement.lastChild.innerText = "Applying, please wait 5-10 seconds..."
+                await setFilamentSlotFromTag(this.dataset.ids);
+                showFilamentSlots();
+                
             }
             th.appendChild(document.createElement("br"));
             th.appendChild(apply);
+            th.appendChild(document.createElement("br"));
+            th.appendChild(document.createElement("p"));
         }
         
         //Make an iterable version of this object
