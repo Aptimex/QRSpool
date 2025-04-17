@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS, cross_origin
 from flask_basicauth import BasicAuth
 import json
@@ -97,7 +97,7 @@ class OpenSpoolBambuSlot(OpenSpoolData):
 
 @app.route("/")
 def hello_world():
-    return "<p>Server Up</p>"
+    return redirect("/serverStatus")
 
 @app.route("/serverStatus")
 def serverStatus():
