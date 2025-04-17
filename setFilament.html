@@ -15,7 +15,7 @@
     </head>
     <body>
         <div id="navPlaceholder">
-            <script>insertNav(document.querySelector("#navPlaceholder"))</script>
+            <script>insertNav(document.querySelector("#navPlaceholder"), "#nav-apply")</script>
         </div>
         
         <p id="error"></p>
@@ -60,7 +60,7 @@
             errorBox.innerText = "Querying server for slot data, please wait...";
             
             let slotData = await getSlots();
-            console.log(slotData);
+            //console.log(slotData);
 
             try {
                 //Display slot data

@@ -24,7 +24,7 @@
     
     <body>
         <div id="navPlaceholder">
-            <script>insertNav(document.querySelector("#navPlaceholder"))</script>
+            <script>insertNav(document.querySelector("#navPlaceholder"), "#nav-settings")</script>
         </div>
 
         <h1>Settings</h1>
@@ -164,15 +164,15 @@
             );
             
             if (isAuthRequired()) {
-                console.log("auth required")
+                //console.log("auth required")
                 if (isCredGood) {
-                    console.log("good cred")
+                    //console.log("good cred")
                     document.querySelector('#showGoodCreds').innerText = "Yes";
                 } else if (isCredGood == false) {
-                    console.log("bad cred")
+                    //console.log("bad cred")
                     document.querySelector('#showGoodCreds').innerText = "No";
                 } else { //null
-                    console.log("unknown cred")
+                    //console.log("unknown cred")
                     document.querySelector('#showGoodCreds').innerText = "Unknown";
                 }
             } else {
@@ -199,7 +199,7 @@
                     showAuthRequired(s.authCorrect);
                     
                 } catch (e) {
-                    console.log(e);
+                    console.error(e);
                     try {
                         document.querySelector("#validateResult").innerText = JSON.stringify(s);
                     } catch (e) {

@@ -1,6 +1,5 @@
 // Example QR data format: openspool1.0|PLA|0a2b3c|SomeBrand|210|230
 class FilamentOpenSpool {
-    //static protocol = "openspool";
     static protocol = "OS";
     static version = "1.0";
     static delim = "|";
@@ -25,7 +24,6 @@ class FilamentOpenSpool {
         if (data.substring(0,headerLen) == header) {
             return true;
         }
-        //console.log(data.substring(0,headerLen) + " vs " + header )
         return false;
     }
     
@@ -46,6 +44,7 @@ class FilamentOpenSpool {
             this.maxTemp = fields[5];
         } catch (e) {
             console.log(e);
+            //still return true to support tags missing the later less-important fields
         }
         return true
     }

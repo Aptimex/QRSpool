@@ -110,7 +110,7 @@ function handleData(data) {
         window.location.href = "/setFilament.html"
     }
     else {
-        console.log("Invalid data read: " + data)
+        console.error("Invalid data read: " + data)
     }
     
 }

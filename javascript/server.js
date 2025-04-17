@@ -4,7 +4,7 @@ function makeError(msg, errObj = null) {
         errObj = {};
     }
     errObj.error = msg;
-    console.log(errObj);
+    //console.error(errObj);
     return errObj;
 }
 
@@ -111,7 +111,7 @@ async function serverGETjson(route) {
             headers: headers
         });
     } catch (e) {
-        console.log(e);
+        console.error(e);
         return makeError("Error connecting to server: " + e.message);
     }
     
@@ -119,7 +119,7 @@ async function serverGETjson(route) {
         const jsonResp = await r.json();
         return jsonResp;
     } catch (e) {
-        console.log(e);
+        console.error(e);
         return makeError("Unable to get server response: " + e.message);
     }
 }
