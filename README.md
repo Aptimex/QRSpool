@@ -5,6 +5,8 @@ This project consists of two nearly-decoupled components:
 - A static website ("frontend") that uses client-side Javascript to access a webcam/camera, scan and parse QR codes to extract filament information, and provide a visual interface for applying scanned filament data to a slot on the printer
 - An API server ("backend") that acts as a communication bridge between your printer and the device accessing the static website, translating between standard REST API requests and whatever protocol the target printer uses. 
 
+![QRSpool Diagram](media/QRSpool.drawio.svg)
+
 The frontend is simple enough to be hosted on GitHub Pages (which does not support any server-side operations), providing additional assurance that your camera feed is not being sent to some Internet server. It can also be hosted locally for even more security. 
 
 The backend server must be run on a computer on the same local network as the target printer, or otherwise able to route to it. It provides specific REST API endpoints that accept and return well-defined but extensible data. Currently I have implemented a Python (Flask) server that will communicate with Bambu Labs printer in LAN-only mode using the [bambulabs-api package](https://pypi.org/project/bambulabs-api/), but other servers could be written to support other printer brands without needing to change the frontend code (or at least that was my design goal). 
@@ -44,7 +46,7 @@ docker build --tag "qrspool-bambu" .
 docker run -p 0.0.0.0:5000:5000 qrspool-bambu
 ```
 
-> [!CRITICAL]
+> [!CAUTION]
 > The frontend and backend servers MUST be accessed using the same protocol, HTTP or HTTPS. If you mix protocols your broswer will silently refuse to communicate with the backend server when using the frontend.
 
 > [!IMPORTANT]
