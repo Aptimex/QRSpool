@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+    <head>
+        <title>Settings</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <script src="javascript/localStorage.js"></script>
+        <script src="javascript/server.js"></script>
+        <script src="javascript/nav.js"></script>
+
+        <link rel="stylesheet" href="./css/global.css">
+        <style media="screen">
+            body {
+                font-size: 2em;
+            }
+            input, button {
+                font-size: 1em;
+            }
+        </style>
+        
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
+    </head>
+    
+    <body>
+        <div id="navPlaceholder">
+            <script>insertNav(document.querySelector("#navPlaceholder"), "#nav-settings")</script>
+        </div>
+
+        <h1>Settings</h1>
+        
+        <div class="mb-3">
+            <label for="basic-url" class="form-label">Backend Server URL</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="serverLoc", placeholder="https://example.com:4443">
+            </div>
+            <div class="form-text" id="basic-addon4">The full URL of your local server that handles communication with your printer.</div>
+            
+            <label for="basic-url" class="form-label">Server Username</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="serverUser">
+            </div>
+            
+            <label for="basic-url" class="form-label">Server Password</label>
+            <div class="input-group">
+                <input type="password" class="form-control" id="serverPass">
+            </div>
+        
+            <button class="btn btn-primary btn-sm" type="button" name="save", onclick="saveServerInfo()">
+                Save 
+            </button>
+            <button class="btn btn-warning btn-sm" type="button" name="clear", onclick="clearServerInfo(); showLocalSettings()">
+                Clear 
+            </button>
+            <button class="btn btn-info btn-sm" type="button" name="clear", onclick="if (getServer()) {window.open(getServer())}">
+                Open address in new tab 
+            </button>
+            <button class="btn btn-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapseServerInfo" aria-expanded="false" aria-controls="collapseServerInfo">
+                More Info
+            </button>
+        </div>
+        
+        <div>
+            
+        </div>
+
+        <div class="collapse" id="collapseServerInfo">
+            <div class="card card-body">
+                <p>
+                    If this site is using HTTPS then the the server site must be also <br/>
+                    (self-signed cert works IF you browse to it first and accept the security risk)
+                </p>
+                <p>
+                    This value will be saved to your device's local storage.
+                </p>
+            </div>
+        </div>
+        <hr>
+        <br>
+        
+        <div>
+            <button btn btn-primary btn-sm type="button" name="validate", onclick="validateServer()">
+                Validate Server
+            </button>
+            <p>
+                Attempt to connect to the server and request status info about it.
+            </p> 
+            <div class="">
+                <pre id="validateResult"></pre>
+            </div>
+        </div>
+        
+        <h2>Server Info</h2>
+        <table class="table table-striped table-bordered">
+            <tr scope="row">
+                <th>Server status</th><td scope="col" id="showServerStatus"></td>
+            </tr>
+            <tr scope="row">
+                <th>Server requires auth</th><td scope="col" id="showAuthRequired"></td>
+            </tr>
+            <tr scope="row">
+                <th>Creds are valid?</th><td scope="col" id="showGoodCreds"></td>
+            </tr>
+        </table>
+
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="" id="torchStartCheckbox" onclick="setTorchStart(this.checked)">
+            <label class="form-check-label" for="torchStartCheckbox">
+                Turn on phone torch (LED) when camera starts
+            </label>
+        </div>
+    </body>
+    
+    <script type="text/javascript">
+        function saveServerInfo() {
+            setServer(document.querySelector('#serverLoc').value);
+            setAuthCreds(
+                document.querySelector('#serverUser').value,
+                document.querySelector('#serverPass').value
+            );
+        }
+        
+        function clearServerInfo() {
+            clearServer(); 
+            clearAuthCred();
+            showLocalSettings()
+        }
+    
+        function showLocalSettings() {
+            let s = getServer();
+            if (s != null) {
+                document.querySelector('#serverLoc').value = s;
+            } else {
+                document.querySelector('#serverLoc').value = "";
+            }
+            
+            let u = getAuthUser();
+            if (u != null) {
+                document.querySelector('#serverUser').value = u;
+            } else {
+                document.querySelector('#serverUser').value = "";
+            }
+            
+            let p = getAuthPass();
+            if (p != null) {
+                document.querySelector('#serverPass').value = p;
+            } else {
+                document.querySelector('#serverPass').value = "";
+            }
+
+            let ts = getTorchStart();
+            if (! ts) {
+                document.querySelector('#torchStartCheckbox').removeAttribute("checked");
+            } else {
+                document.querySelector('#torchStartCheckbox').setAttribute("checked", "");
+            }
+        }
+        showLocalSettings();
+        
+        function showAuthRequired(isCredGood) {
+            document.querySelector('#showAuthRequired').innerText = (
+                isAuthRequired() ? "Yes" : 
+                    (getAuthRequired() == null) ? "Unknown" : "No"
+            );
+            
+            if (isAuthRequired()) {
+                //console.log("auth required")
+                if (isCredGood) {
+                    //console.log("good cred")
+                    document.querySelector('#showGoodCreds').innerText = "Yes";
+                } else if (isCredGood == false) {
+                    //console.log("bad cred")
+                    document.querySelector('#showGoodCreds').innerText = "No";
+                } else { //null
+                    //console.log("unknown cred")
+                    document.querySelector('#showGoodCreds').innerText = "Unknown";
+                }
+            } else {
+                document.querySelector('#showGoodCreds').innerText = "N/A";
+            }
+        }
+        showAuthRequired();
+        
+        function validateServer() {
+            document.querySelector('#validateResult').innerText = "Querying server, please wait...";
+            
+            getServerStatus().then(s => {
+                try {
+                    document.querySelector("#showServerStatus").innerText = s.status;
+                    document.querySelector("#validateResult").innerText = "";
+                    
+                    if (s.authRequired == true) {
+                        setAuthRequired();
+                    } else if (s.authRequired == false) {
+                        setAuthNotRequired();
+                    } else {
+                        clearAuthRequired();
+                    }
+                    showAuthRequired(s.authCorrect);
+                    
+                } catch (e) {
+                    console.error(e);
+                    try {
+                        document.querySelector("#validateResult").innerText = JSON.stringify(s);
+                    } catch (e) {
+                        document.querySelector("#validateResult").innerText = "Server response was not JSON: " + s;
+                    } 
+                }
+            });
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
+</html>
