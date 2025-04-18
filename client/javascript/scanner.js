@@ -51,8 +51,16 @@ function tick() {
     canvasElement.hidden = false;
     outputContainer.hidden = false;
 
-    canvasElement.height = video.videoHeight;
-    canvasElement.width = video.videoWidth;
+    // Dynamically shrink the video to fit the window width if it's too wide
+    var widthPadding = 20;
+    var vHeight = video.videoHeight;
+    var vWidth = Math.min(window.innerWidth-widthPadding, video.videoWidth);
+    if (vWidth < video.videoWidth) {
+      vHeight = (vWidth / video.videoWidth) * video.videoHeight; 
+    }
+
+    canvasElement.height = vHeight;
+    canvasElement.width = vWidth;
     canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
     var imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
     var code = jsQR(imageData.data, imageData.width, imageData.height, {
