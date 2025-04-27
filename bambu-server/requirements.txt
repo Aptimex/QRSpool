@@ -1,4 +1,4 @@
-bambulabs_api @ git+https://github.com/Aptimex/bambulabs_api@70a459f0314a83403c2dc40d2596ffcba874b360
+bambulabs_api @ git+https://github.com/BambuTools/bambulabs_api@f0838aaf963cfdd09178bc45caecd782bf983d9f
 blinker==1.9.0
 click==8.1.8
 Flask==3.1.0
@@ -6,8 +6,7 @@ Flask-BasicAuth==0.2.0
 flask-cors==5.0.1
 itsdangerous==2.2.0
 Jinja2==3.1.6
-jsonpickle==4.0.5
 MarkupSafe==3.0.2
 paho-mqtt==2.1.0
-pillow==11.1.0
+pillow==11.2.1
 Werkzeug==3.1.3
