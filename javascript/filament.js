@@ -195,15 +195,6 @@ class FilamentSlot {
     }
 }
 
-function parseOpenSpool(data) {
-    let tag = new FilamentOpenSpool();
-    result = tag.parseDataString(data);
-    if (! result) {
-        return null;
-    }
-    return tag;
-}
-
 function parseActiveTag() {
     let tagData = getActiveTagData();
     if (tagData == null) {
