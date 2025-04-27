@@ -60,19 +60,24 @@ flask run --host=0.0.0.0 --cert=cert.pem --key=key.pem
 ```
 
 ### Frontend Usage
-Navigate to https://TODO/settings.html on your smartphone. 
+Navigate to https://aptimex.github.io/QRSpool/settings.html on your smartphone. 
 
 Fill out the connection info for your backend server, save it, and validate it. You only need to do this once. 
 
 Go to the Scan tab and grant access to your camera. 
 
+> [!TIP]
+> In my own testing, toggling the phone's camera LED (torch) only worked in Chrome, not Firefox. 
+
 Scan a properly-formatted QR code and select a slot to apply it to. 
 
 ### Frontend Local Hosting
-Use any webserver of your choice to host the TODO folder. For example, `python3 -m http.server` provides a quick and easy development server for testing. 
+Use any webserver of your choice to host the `client` folder. For example, `python3 -m http.server` provides a quick and easy development server for testing. 
+
+If you want fully-offline local hosting, you'll need to replace the Bootstrap (CSS and Javascript) and jsQR CDN references on each page with references to local copies of those library files that you download. 
 
 ## QR Code Data Format
-This uses the [OpenSpool protocol data format](https://openspool.io/rfid.html), modified for minimal size to allow the QR Code to be as small and compact as possible. OpenSpool currently defines a JSON format with 6 values:
+This project uses the [OpenSpool protocol data format](https://openspool.io/rfid.html), modified for minimal size to allow the QR Code to be as small and compact as possible. OpenSpool currently defines a JSON format with 6 values:
 - protocol 
 - version 
 - type 
@@ -95,18 +100,18 @@ Currently only the official filament profile names (Brand + Type displayed in th
 
 If a code match cannot be found, the server will replace the Brand with `Generic` and attempt to find a match again. 
 
-If that fails, the server will check to see if the Type field contains a known filament code (in `bambu-ams-codes.json`) and use that directly. This allows you to create tags for [custom filament profiles you have saved to your AMS](https://forum.bambulab.com/t/how-to-add-custom-filaments-so-you-can-select-them-in-the-ams/52140) without having to necessarily add them to the JSON code file. 
+If that fails, the server will check to see if the Type field contains a known filament code (in `bambu-ams-codes.json`) and use that directly. This allows you to create tags for [custom filament profiles you have saved to your AMS](https://forum.bambulab.com/t/how-to-add-custom-filaments-so-you-can-select-them-in-the-ams/52140) by adding them to that JSON code file. 
 
 If that fails, the server will return an error. 
 
-From my testing Bambu printers seem to ignore any temperature values you specify and just use the ones in the profile settings associated with the code; only the code and color seem to matter. 
+From my testing Bambu printers seem to ignore any temperature values you specify and just use the ones in the profile settings associated with the code; only the filament code and color seem to matter. 
 
 ### Printing QR Codes
 I recommend [QR2STL](https://printer.tools/qrcode2stl) for generating printable QR codes. It provides a lot of customization options (notably including different error correction levels) and a quick 3D preview of the STL. 
 
-I've had good luck generating QR codes with this data format that are 30x30mm, with a 0.4mm nozzle. Much smaller and your printer may not be able to print the code with enough detail to be decoded reliably unless you switch to a 0.2mm nozzle. [Here's an example](https://printer.tools/qrcode2stl/#shareQR-eyJlcnJvckNvcnJlY3Rpb25MZXZlbCI6IkwiLCJ0ZXh0IjoiT1MxLjB8UExBIE1hdHRlfDFlODQ0MHxCYW1idXwxOTB8MjQwIiwiYmFzZSI6eyJ3aWR0aCI6MzAsImhlaWdodCI6MzAsImRlcHRoIjoxLCJjb3JuZXJSYWRpdXMiOjIsImhhc0JvcmRlciI6ZmFsc2UsImhhc1RleHQiOnRydWUsInRleHRNYXJnaW4iOjEuMiwidGV4dFNpemUiOjMsInRleHRNZXNzYWdlIjoiQmFtYnUgUExBIFxuTWF0dGUgR3JlZW4iLCJ0ZXh0RGVwdGgiOjAuNH0sImNvZGUiOnsiZGVwdGgiOjAuNCwibWFyZ2luIjoxLjJ9fQ==) of some good starting settings for generating your own QR code. 
+I've had good luck generating QR codes with this data format that are 30x30mm, printed with a 0.4mm nozzle. Smaller QR codes may be difficult to print with enough detail to be decoded reliably unless you switch to a 0.2mm nozzle. [Here's an example](https://printer.tools/qrcode2stl/#shareQR-eyJlcnJvckNvcnJlY3Rpb25MZXZlbCI6IkwiLCJ0ZXh0IjoiT1MxLjB8UExBIE1hdHRlfDFlODQ0MHxCYW1idXwxOTB8MjQwIiwiYmFzZSI6eyJ3aWR0aCI6MzAsImhlaWdodCI6MzAsImRlcHRoIjoxLCJjb3JuZXJSYWRpdXMiOjIsImhhc0JvcmRlciI6ZmFsc2UsImhhc1RleHQiOnRydWUsInRleHRNYXJnaW4iOjEuMiwidGV4dFNpemUiOjMsInRleHRNZXNzYWdlIjoiQmFtYnUgUExBIFxuTWF0dGUgR3JlZW4iLCJ0ZXh0RGVwdGgiOjAuNH0sImNvZGUiOnsiZGVwdGgiOjAuNCwibWFyZ2luIjoxLjJ9fQ==) of some good starting settings for generating your own QR codes. 
 
-When printing, use Arachne slicing for best results. 
+When printing, use the Arachne wall generation method for best results. 
 
 # Technical Notes
 This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. 
