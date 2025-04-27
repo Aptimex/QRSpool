@@ -1,5 +1,6 @@
 services:
   bambu-api-server:
+    container_name: bambu-api-server
     build:
       context: .
     volumes:
