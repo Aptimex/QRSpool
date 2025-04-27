@@ -1,6 +1,6 @@
 async function insertNav(parentEl, activeID=null) {
   try {
-    const nFile = "/nav.html";
+    const nFile = "nav.html";
     const response = await fetch(nFile);
 
     if (!response.ok) {
