@@ -3,10 +3,6 @@
 import time
 import bambulabs_api as bl
 import json
-import jsonpickle
-import os
-#import importlib
-from copy import deepcopy
 
 #local files
 from bambu_config import IP, SERIAL, ACCESS_CODE

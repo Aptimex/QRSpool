@@ -4,7 +4,6 @@
 # You must first clone/download the repo (https://github.com/bambulab/BambuStudio) to a local folder so this script can parse the files in it. 
 
 import sys
-import shutil
 import os
 from os.path import isfile, join
 import json
