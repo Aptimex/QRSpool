@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# This is a standlone helper script, the server does not use it directly. 
 # This parses the print profile definitions from the BambuStudio repo to extract the latest type-to-code mappings. 
 # You must first clone/download the repo (https://github.com/bambulab/BambuStudio) to a local folder so this script can parse the files in it. 
 

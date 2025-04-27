@@ -5,9 +5,9 @@ import bambulabs_api as bl
 import json
 
 #local files
-from bambu_config import IP, SERIAL, ACCESS_CODE
+from configs.bambu_config import IP, SERIAL, ACCESS_CODE
 
-def getKnownFilaments(path = "./bambu-ams-codes.json"):
+def getKnownFilaments(path = "./configs/bambu-ams-codes.json"):
     with open(path, "r") as f:
         codes = json.loads(f.read())
     #print(f"Loaded {len(codes)} filament codes")

@@ -7,7 +7,7 @@ import time
 from threading import Timer
 from base64 import b64encode, b64decode
 
-from bambu_config import AUTH_USER, AUTH_PASS
+from configs.bambu_config import AUTH_USER, AUTH_PASS
 
 app = Flask(__name__)
 CORS(app) # allow CORS for all domains on all routes.
