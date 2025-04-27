@@ -1,6 +1,8 @@
 # QRSpool
 QR Code-based broswer implementation of the OpenSpool standard. Quickly apply filament settings to specific multi-material slots using printable QR codes and your smartphone intead of RFID tags and readers. 
 
+**THIS PROJECT IS STILL UNDER ACTIVE DEVELOPMENT. The main branch may not contain stable code.**
+
 This project consists of two nearly-decoupled components: 
 - A static website ("frontend") that uses client-side Javascript to access a webcam/camera, scan and parse QR codes to extract filament information, and provide a visual interface for applying scanned filament data to a slot on the printer. Hosted instance available at https://aptimex.github.io/QRSpool
 - A local API server ("backend") that acts as a communication bridge between your printer and the device accessing the website, translating between standard REST API requests and whatever protocol the target printer uses. 
@@ -117,10 +119,10 @@ When printing, use the Arachne wall generation method for best results.
 This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. 
 
 ## Server Interactions
-The frontend (web client) is responsible for parsing QR codes, extracting filament data, and sending it to a separate server that handles passing it off to your printer. Since different printer brands have different APIs, this modular separation makes developing servers that can interact with different printers much easier. 
+The frontend (web client) is responsible for parsing QR codes, extracting filament data from them, and sending that data in a specific format to a separate server that handles passing it off to your printer. Since different printer brands have different APIs, this modular separation makes developing servers that can interact with different printers much easier since the frontend code (theoretically) can be re-used. 
 
 The server should expose the following API endpoints:
-- `/serverStatus` should accept unauthenticated GET requests and return this JSON-formatted response indicating that the server is running (regardless of printer status), and information about server authentication requirements: 
+- `/serverStatus` should accept unauthenticated GET requests and return this JSON-formatted response indicating that the server is running (regardless of printer status), plus information about server authentication requirements: 
 ```json
 {
     "status": "running",

@@ -1,0 +1,6 @@
+services:
+  bambu-api-server:
+    build:
+      context: .
+    volumes:
+      - ./configs:/bambu-server/configs
