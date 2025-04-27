@@ -4,3 +4,5 @@ services:
       context: .
     volumes:
       - ./configs:/bambu-server/configs
+    ports:
+      - "5123:5123"
