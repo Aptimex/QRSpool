@@ -3,6 +3,15 @@ class FilamentOpenSpool {
     static protocol = "OS";
     static version = "1.0";
     static delim = "|";
+    static displayMap = {
+        "rawData": "Raw QR Data",
+        "displayProtocol": "Tag Protocol",
+        "type": "Type",
+        "colorHex": "Color",
+        "brand": "Brand",
+        "minTemp": "Min Temp (C)",
+        "maxTemp": "Max Temp (C)"
+    }
     
     constructor(type, colorHex, brand, minTemp, maxTemp, rawData=null) {
         this.rawData = rawData;
@@ -36,12 +45,12 @@ class FilamentOpenSpool {
         
         let fields = data.split(FilamentOpenSpool.delim);
         try {
-            this.displayProtocol = fields[0];
-            this.type = fields[1];
-            this.colorHex = fields[2];
-            this.brand = fields[3];
-            this.minTemp = fields[4];
-            this.maxTemp = fields[5];
+            this.displayProtocol = fields[0] ? fields[0] : "";
+            this.type = fields[1] ? fields[1] : "";
+            this.colorHex = fields[2] ? fields[2] : "";
+            this.brand = fields[3]  ? fields[3] : "";
+            this.minTemp = fields[4]  ? fields[4] : "";
+            this.maxTemp = fields[5] ? fields[5] : "";
         } catch (e) {
             console.log(e);
             //still return true to support tags missing the later less-important fields
@@ -55,9 +64,17 @@ class FilamentOpenSpool {
         const {...iterableSelf} = this;
         
         Object.entries(iterableSelf).forEach(([k, v]) => {
+            var displayK = k;
+            for (let key in FilamentOpenSpool.displayMap) {
+                if (key === k) {
+                    displayK = FilamentOpenSpool.displayMap[key];
+                    break;
+                }
+            }
             if (k == "colorHex") {
                 v = v.substring(0,6);
             }
+
             let tr = tbl.insertRow();
             tr.setAttribute("scope","row");
             
@@ -67,7 +84,7 @@ class FilamentOpenSpool {
             let th = document.createElement("th");
             tr.insertBefore(th, td);
             
-            th.innerText = k;
+            th.innerText = displayK;
             td.innerText = v;
             if (k == "colorHex") {
                 let box = document.createElement("div");
@@ -211,5 +228,5 @@ function parseActiveTag() {
 }
 
 function activateTag(tag) {
-    setActiveTagData(tag.toDataString());
+    setActiveTagData(tag.rawData);
 }
