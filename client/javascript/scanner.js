@@ -115,5 +115,5 @@ function handleCodeData(data) {
     }
     
     activateTag(tag);
-    window.location.href = "/setFilament.html"
+    window.location.href = "./apply.html"
 }
