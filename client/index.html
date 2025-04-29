@@ -1,57 +1,57 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <meta charset="utf-8">
-    <title>QRSpool</title>
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
-    
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="javascript/localStorage.js"></script>
-    <script src="javascript/filament.js"></script>
-    <script src="javascript/scanner.js" defer></script>
-    <script src="javascript/server.js"></script>
-    <script src="javascript/nav.js"></script>
-    <!--script src="javascript/jsQR.js"></script -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    
-    <link rel="stylesheet" href="./css/global.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">  
-</head>
-
-<body>
-    <div id="navPlaceholder">
-        <script>insertNav(document.querySelector("#navPlaceholder"), "#nav-scan")</script>
-    </div>
-    
-    <h1>Scan</h1>
-
-    <div id="setupCheck" class="alert alert-warning error-div" hidden="true" role="alert"></div>
-
-    <div>
-        <p>Scan a filament QR code (tap/click video to toggle phone torch, if supported)</p>
-    </div>
-    
-    
-    <div id="loadingMessage">🎥 Unable to access video stream (please make sure you have a webcam enabled)</div>
-    
-    <canvas id="canvas" hidden onclick="toggleTorch()"></canvas>
-    
-    <div id="output" hidden>
-        <div id="outputMessage">No QR code detected.</div>
-        <div hidden><b>Data:</b> <span id="outputData"></span></div>
-    </div>
-    
-    <script>
-        (async () => {
-            //Force the server to (re)connect to the printer so later actions finish faster
-            let pStatus = await getPrinterStatus();
-            if (pStatus.error) {
-                document.querySelector("#setupCheck").innerText = `${pStatus.error}; Verify your connection details on the Settings page`;
-                document.querySelector("#setupCheck").hidden = false;
-            }
-        })();
+    <head>
+        <title>QRSpool</title>
+        <link rel="icon" href="logo.svg" sizes="any" type="image/svg+xml" />
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
-</body>
+        <script src="javascript/localStorage.js"></script>
+        <script src="javascript/filament.js"></script>
+        <script src="javascript/scanner.js" defer></script>
+        <script src="javascript/server.js"></script>
+        <script src="javascript/nav.js"></script>
+        <!--script src="javascript/jsQR.js"></script -->
+        <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+        
+        <link rel="stylesheet" href="./css/global.css">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">  
+    </head>
+
+    <body>
+        <div id="navPlaceholder">
+            <script>insertNav(document.querySelector("#navPlaceholder"), "#nav-scan")</script>
+        </div>
+        
+        <h1>Scan</h1>
+
+        <div id="setupCheck" class="alert alert-warning error-div" hidden="true" role="alert"></div>
+
+        <div>
+            <p>Scan a filament QR code (tap/click video to toggle phone torch, if supported)</p>
+        </div>
+        
+        
+        <div id="loadingMessage">🎥 Unable to access video stream (please make sure you have a webcam enabled)</div>
+        
+        <canvas id="canvas" hidden onclick="toggleTorch()"></canvas>
+        
+        <div id="output" hidden>
+            <div id="outputMessage">No QR code detected.</div>
+            <div hidden><b>Data:</b> <span id="outputData"></span></div>
+        </div>
+        
+        <script>
+            (async () => {
+                //Force the server to (re)connect to the printer so later actions finish faster
+                let pStatus = await getPrinterStatus();
+                if (pStatus.error) {
+                    document.querySelector("#setupCheck").innerText = `${pStatus.error}; Verify your connection details on the Settings page`;
+                    document.querySelector("#setupCheck").hidden = false;
+                }
+            })();
+            
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
+    </body>
 </html>

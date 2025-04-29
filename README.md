@@ -1,4 +1,9 @@
-# QRSpool
+<div align="center">
+
+# <img align="center" src="client/logo.svg" width="20%"> QRSpool 
+
+</div>
+
 QR Code-based broswer implementation of the OpenSpool standard. Quickly apply filament settings to specific multi-material slots using printable QR codes and your smartphone intead of RFID tags and readers. 
 
 **THIS PROJECT IS STILL UNDER ACTIVE DEVELOPMENT. The main branch may not contain stable code.**
@@ -7,7 +12,11 @@ This project consists of two nearly-decoupled components:
 - A static website ("frontend") that uses client-side Javascript to access a webcam/camera, scan and parse QR codes to extract filament information, and provide a visual interface for applying scanned filament data to a slot on the printer. Hosted instance available at https://aptimex.github.io/QRSpool
 - A local API server ("backend") that acts as a communication bridge between your printer and the device accessing the website, translating between standard REST API requests and whatever protocol the target printer uses. 
 
+<div align="center">
+
 ![QRSpool Diagram](media/QRSpool.drawio.svg)
+
+</div>
 
 The frontend is simple enough to be hosted on GitHub Pages (which does not support any server-side operations), providing additional assurance that your camera feed is not being sent to some Internet server. It can also be hosted locally for even more security. 
 
