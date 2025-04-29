@@ -1,6 +1,8 @@
 <div align="center">
 
-# <img align="center" src="client/logo.svg" width="20%"> QRSpool 
+# QRSpool
+
+<img align="center" src="client/logo.svg" width="20%">
 
 </div>
 
