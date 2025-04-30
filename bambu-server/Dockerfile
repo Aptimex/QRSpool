@@ -8,10 +8,10 @@ COPY ./* /bambu-server
 RUN pip install -r requirements.txt
 
 # This generates a self-signed cert good for 10 years
-RUN openssl req -new -x509 -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=www.example.com" -keyout key.pem -out cert.pem -days 3650 -nodes
+RUN openssl req -new -x509 -subj "/CN=bambu-api-server.local" -keyout server.key -out server.crt -days 3650 -nodes
 
 # HTTPS listening on port 5123
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5123", "--cert=cert.pem", "--key=key.pem"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5123", "--cert=server.crt", "--key=server.key"]
 
 # HTTP lsitening on port 5123
 #CMD ["flask", "run", "--host=0.0.0.0", "--port=5123"]

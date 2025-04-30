@@ -26,9 +26,9 @@ The backend server must be run on a computer on the same local network as the ta
 
 ## Getting Started
 Requirements:
-- An always-on computer with a static IP (Raspberry Pi is a good option)
-    - Python 3 (tested with 3.10.12)
-- A Bambu printer in LAN-only mode on the same local network as that computer
+- A server (always-on computer) with a static IP; Raspberry Pi is a good option
+    - Docker, or Python 3 (tested with 3.10.12)
+- A Bambu printer in LAN-only mode on the same local network as the server
 - A smartphone, or a computer with a webcam (a USB webcam with long cable will provide the best experience when using a computer)
     - A modern web browser (tested wtih Firefox and Chrome)
 
@@ -38,86 +38,59 @@ Requirements:
 ### Backend Server Setup
 First, copy the `bambu_config.example.py` file to `bambu_config.py` and modify it with your printer settings and desired server access credential. You can leave the credentials empty, but the server will still expect you to supply an empty username and password to access it. 
 
-
 There are two recommended ways to run this: 
-- HTTP accessible only to localhost, with a reverse proxy that adds TLS with real certificates to it and exposes it to the rest of the network, or
-- Exposed HTTPS with a self-signed cert
+- (Default, easiest) HTTPS with a self-signed cert, exposed directly to your network. Optionally obtain a real certificate and use that instead. 
+- (Recommended, more complex) HTTP, using a reverse proxy to add proper SSL/TLS and expose that to your network
 
-Docker, with HTTP only, accessible on localhost (use this if using a reverse proxy that adds HTTPS and exposes it to your network):
+Docker is recommended way to run the server. The provided `Dockerfile` in the `bambu-server` folder supports both options, just uncomment the appropriate `CMD` line. Then from that folder run:
 ```bash
-# First edit the Dockerfile to use the HTTP CMD line
-docker build --tag "qrspool-bambu" .
-docker run -p 127.0.0.1:5000:5000 qrspool-bambu
+sudo docker compose up --build -d
 ```
+
+This will expose the API server on port 5123, but that can be customized by editing the provided docker files. The files in the `configs` subdirectory will be mounted into the container so they will persist across container restarts. Reverse proxy setup instructions is outside the scope of this project. 
 
 > [!WARNING]
 > If you expose a HTTP-only server to your network then any other devices on your network will be able to sniff your server credentials. 
 
-Docker, with auto-generated self-signed HTTPS certificate, exposed to your network on port 5000:
+> [!WARNING]
+> The frontend and backend servers MUST be accessed using the same protocol, HTTP or HTTPS. If you mix protocols your broswer will proabably silently refuse to communicate with the backend server when using the frontend.
+
+Want to run it natively instead? Setup your config files and then run something like this:
 ```bash
-docker build --tag "qrspool-bambu" .
-docker run -p 0.0.0.0:5000:5000 qrspool-bambu
-```
-
-> [!CAUTION]
-> The frontend and backend servers MUST be accessed using the same protocol, HTTP or HTTPS. If you mix protocols your broswer will silently refuse to communicate with the backend server when using the frontend.
-
-> [!IMPORTANT]
-> If the backend server uses HTTPS with a self-signed certificate you may need to navigate to it each time your broswer re-starts to accept the security risk; otherwise your broswer will silently refuse to communicate with it when using the frontend. 
-
-Want to run it natively instead? Setup your config file and then run something like this:
-```bash
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 openssl req -new -x509 -keyout key.pem -out server.pem -days 3650 -nodes
 flask run --host=0.0.0.0 --cert=cert.pem --key=key.pem
 ```
 
 ### Frontend Usage
-Navigate to https://aptimex.github.io/QRSpool/settings.html on your smartphone. 
+Navigate to https://aptimex.github.io/QRSpool/settings.html on your smartphone using Chrome or Firefox. 
 
-Fill out the connection info for your backend server, save it, and validate it. You only need to do this once. 
+Fill out the URL for your backend server, save it, and validate it. You only need to do this once. 
+
+> [!IMPORTANT]
+> If the backend server uses HTTPS with a self-signed certificate you may need to navigate to it each time your broswer re-starts to accept the security risk; otherwise your broswer will silently refuse to communicate with the backend server. 
 
 Go to the Scan tab and grant access to your camera. 
 
 > [!TIP]
 > In my own testing, toggling the phone's camera LED (torch) only worked in Chrome, not Firefox. 
 
-Scan a properly-formatted QR code and select a slot to apply it to. 
+Scan a properly-formatted QR code (described in the next section) and select a printer filament slot to apply it to. 
 
-### Frontend Local Hosting
+### Optional: Frontend Local Hosting
 Use any webserver of your choice to host the `client` folder. For example, `python3 -m http.server` provides a quick and easy development server for testing. 
 
-If you want fully-offline local hosting, you'll need to replace the Bootstrap (CSS and Javascript) and jsQR CDN references on each page with references to local copies of those library files that you download. 
+If you want fully-offline local hosting, you'll need to download the `Bootstrap` (CSS and Javascript) and `jsQR` files referenced in each HTML file and modify those references to point to the downloaded files. 
 
 ## QR Code Data Format
-This project uses the [OpenSpool protocol data format](https://openspool.io/rfid.html), modified for minimal size to allow the QR Code to be as small and compact as possible. OpenSpool currently defines a JSON format with 6 values:
-- protocol 
-- version 
-- type 
-- color_hex 
-- brand
-- min_temp
-- max_temp
-
-These values have been converted into the following string format that can be stored more compactly in a QR code, with values in a specific order and separated by the pipe (`|`) character:
+This project supports QR codes with the following data format:
 ```
 OS1.0|TYPE|COLOR_HEX|BRAND|MIN_TEMP|MAX_TEMP
 ```
 
-`OS1.0` is shorthand for `openspool1.0`, and its presence at the start of the string helps the scanner identify valid QR codes matching this modified format so it doesn't waste time trying to process unrelated codes. 
+`OS1.0` is a static string that helps the scanner identify valid QR codes matching this format so it doesn't waste time trying to process unrelated codes. 
 
-The remaining fields are approximately in order of importance/necessity for configuring an AMS slot. This project will parse as many fields as are provided, allowing one or more on the end to be left off. For example, if your printer automatically configures print temperatures based on pre-configured profiles for certain types and brands, you can leave these values off. 
-
-### Filament Settings with Bambu Printers
-Currently only the official filament profile names (Brand + Type displayed in the Filament dropdown in the slicer) are supported because Bambu uses static identifiers for each that have to be mapped to the human-readable data supplied in a QR code. For example, you must specify `Bambu` as the Brand and `PLA Matte` as the Type in a QR code, with that exact spelling and case, in order for the server to identify the internal code assigned to that profile. The server combines the two fields (inserting a space in between them) and looks for a mtach in the `bambu-ams-codes.json` file. 
-
-If a code match cannot be found, the server will replace the Brand with `Generic` and attempt to find a match again. 
-
-If that fails, the server will check to see if the Type field contains a known filament code (in `bambu-ams-codes.json`) and use that directly. This allows you to create tags for [custom filament profiles you have saved to your AMS](https://forum.bambulab.com/t/how-to-add-custom-filaments-so-you-can-select-them-in-the-ams/52140) by adding them to that JSON code file. 
-
-If that fails, the server will return an error. 
-
-From my testing Bambu printers seem to ignore any temperature values you specify and just use the ones in the profile settings associated with the code; only the filament code and color seem to matter. 
+The remaining fields, separated by the pipe (`|`) character, should be replaced with data related to the filament you want it to represent. They are approximately in order of importance/necessity for configuring a filament slot. The scanner will parse as many fields as are provided, allowing you to skip values (leave them empty, or ommit them from the end) that you don't care about or that your printer doesn't support setting. 
 
 ### Printing QR Codes
 I recommend [QR2STL](https://printer.tools/qrcode2stl) for generating printable QR codes. It provides a lot of customization options (notably including different error correction levels) and a quick 3D preview of the STL. 
@@ -126,8 +99,32 @@ I've had good luck generating QR codes with this data format that are 30x30mm, p
 
 When printing, use the Arachne wall generation method for best results. 
 
+### Bambu Printers Caveats
+Currently only the official filament profile names (Brand + Type, displayed in the Filament dropdown in Bambu Studio) are supported. Bambu uses static internal identifiers for each available profile that have to be mapped to the human-readable data supplied in a QR code. For example, you must specify `Bambu` as the Brand and `PLA Matte` as the Type in a QR code, with that exact spelling and case, in order for the server to identify the internal code (`GFA01`) assigned to that profile. The server combines the two fields (inserting a space in between them) and looks for a mtach in the `bambu-ams-codes.json` file to find the correct code to send to the printer. 
+
+If a code match cannot be found, the server will replace the Brand with `Generic` and attempt to find a match again. 
+
+If that fails, the server will check to see if the Type field contains a known filament code (in the `bambu-ams-codes.json` file) and use that directly. This allows you to create QR codes for [custom filament profiles you have saved to your AMS](https://forum.bambulab.com/t/how-to-add-custom-filaments-so-you-can-select-them-in-the-ams/52140) by adding them to that JSON code file. 
+
+If that fails, the server will return an error. 
+
+From my testing Bambu printers seem to ignore any temperature values you specify and just use the ones in the profile settings associated with the code; only the filament code and color seem to matter. So you can completely ommit the temperature fields if you want. 
+
 # Technical Notes
 This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. 
+
+## QR Codes
+
+This project uses the [OpenSpool protocol data format](https://openspool.io/rfid.html), modified for minimal size to allow the QR Code to be as small and compact as possible. OpenSpool 1.0 defines a JSON format with 6 values:
+- protocol 
+- version 
+- type 
+- color_hex 
+- brand
+- min_temp
+- max_temp
+
+These values have been converted into the string format described above, which can be stored much more compactly in a QR code than JSON data.
 
 ## Server Interactions
 The frontend (web client) is responsible for parsing QR codes, extracting filament data from them, and sending that data in a specific format to a separate server that handles passing it off to your printer. Since different printer brands have different APIs, this modular separation makes developing servers that can interact with different printers much easier since the frontend code (theoretically) can be re-used. 
