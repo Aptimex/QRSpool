@@ -230,7 +230,3 @@ The username and password supplied by the client can be set by the user in the `
 
 ## Bambulabs-api Dependancy
 When I started this project I realized that the `bambulabs-api` [Python library](https://github.com/BambuTools/bambulabs_api) didn't support sending arbitrary filament codes or data, requiring matches against an internal code list that isn't always up-to-date. That was fixed with [this commit](https://github.com/BambuTools/bambulabs_api/pull/130/commits/f0838aaf963cfdd09178bc45caecd782bf983d9f), so the `requirements.txt` file for the backend server references that commit directly. This will updated to point to a normal version number once the next update is released. 
-
-
-## Bambu AMS Code Matching
-If you've managed to get another profile added to your AMS (I have no idea if or how you could do that), then you can add the name and code to that json file so the server can map it to the proper code. 
