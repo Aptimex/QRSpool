@@ -144,6 +144,10 @@ def checkFilamentPatch():
 # If that's not found, check if the type is a known code and use that directly
 # Otherwise return None
 def filamentToCode(fManufacturer: str, fType: str):
+    # Check if the filament code is set directly in the tag
+    if fManufacturer == "RAWCODE":
+        return fType
+
     lookup = ("" + fManufacturer.strip() + " " + fType.strip()).lower()
     lookupGeneric = ("Generic " + fType.strip()).lower()
     lookupByCode = fType.strip().lower()
@@ -153,14 +157,16 @@ def filamentToCode(fManufacturer: str, fType: str):
     
     for t in knownTypes:
         if lookup == t.lower():
+            # Return exact match
             return CODES[t]
         if lookupGeneric == t.lower():
-            # This will be returned if an exact match isn't found
+            # This match will be returned later if an exact match isn't found
             backupCode = CODES[t]
     
     if backupCode != "":
         return backupCode
     
+    # No match, check if the filament type is a known code
     knownCodes = list(CODES.values())
     for c in knownCodes:
         if lookupByCode == c.lower():
