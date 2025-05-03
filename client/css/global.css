@@ -3,6 +3,10 @@
     height: 150px;
     border: 2px solid black;
 }
+.naked-link {
+    text-decoration: none;
+    color: inherit;
+}
 
 pre {
     background-color: whitesmoke;
