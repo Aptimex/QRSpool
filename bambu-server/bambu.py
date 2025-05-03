@@ -108,11 +108,29 @@ def getSlots():
 
 def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0):
     ensureConnected()
+
+    minTemp = 0 if (minTemp == "") else minTemp
+    maxTemp = 0 if (maxTemp == "") else maxTemp
     
-    amsID = int(amsID)
-    trayID = int(trayID)
-    minTemp = int(minTemp)
-    maxTemp = int(maxTemp)
+    try:
+        amsID = int(amsID)
+    except Exception as e:
+        return False, f"Invalid AMS ID '{amsID}': {e}"
+    
+    try:
+        trayID = int(trayID)
+    except Exception as e:
+        return False, f"Invalid Tray ID '{trayID}': {e}"
+
+    try:
+        minTemp = int(minTemp)
+    except Exception as e:
+        return False, f"Invalid min temperature '{minTemp}': {e}"
+
+    try:
+        maxTemp = int(maxTemp)
+    except Exception as e:
+        return False, f"Invalid max temperature: {maxTemp}: {e}"
     
     code = filamentToCode(brand, fType)
     if not code:
