@@ -9,7 +9,7 @@
 Change your printer's filament by scanning a QR code with your phone. 
 
 This project consists of two nearly-decoupled components: 
-- A static website ("frontend") that uses client-side Javascript to access your webcam/camera, scan and parse QR codes to extract filament information, and provide a visual interface for applying scanned filament data to a slot on your printer. Hosted instance available at https://aptimex.github.io/QRSpool
+- A static website ("frontend") that uses client-side Javascript to access your webcam/camera, scan and parse QR codes to extract filament information, and provide a visual interface for applying scanned filament data to a slot on your printer. GitHub Pages hosted instance available at https://qrspool.com
 - A local API server ("backend") that acts as a communication bridge between your printer and browser, translating between standard REST API requests and whatever protocol your printer uses. 
 
 <div align="center">
@@ -65,7 +65,7 @@ flask run --host=0.0.0.0 --cert=cert.pem --key=key.pem
 ```
 
 ### Frontend Usage
-Navigate to https://aptimex.github.io/QRSpool/settings.html on your smartphone using Chrome or Firefox. 
+Navigate to https://qrspool.com/settings.html on your smartphone using Chrome or Firefox. 
 
 Fill out the URL for your backend server, save it, and validate it. You only need to do this once, unless your settings/network change.
 
