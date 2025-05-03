@@ -48,7 +48,7 @@ function tick() {
         outputContainer.hidden = false;
 
         // Dynamically shrink the video to fit the window width if it's too wide
-        var widthPadding = 20;
+        var widthPadding = 40;
         var vHeight = video.videoHeight;
         var vWidth = Math.min(window.innerWidth-widthPadding, video.videoWidth);
         if (vWidth < video.videoWidth) {
