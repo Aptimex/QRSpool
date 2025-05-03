@@ -11,18 +11,35 @@ async function insertNav(parentEl, activeID=null) {
     const parser = new DOMParser();
     const navDom = parser.parseFromString(nav, "text/html");
     const navEl = navDom.querySelector("nav");
-    //parentEl.innerHTML = html;
 
     if (activeID != null) {
       navEl.querySelector(activeID).classList.add("active")
     }
 
     parentEl.replaceWith(navEl);
-    //parentEl.appendChild(navDom);
 
   } catch (error) {
-    console.error("Error inserting HTML:", error);
+    console.error("Error inserting navbar:", error);
   }
 }
 
+async function insertFooter(parentEl) {
+  try {
+    const fFile = "footer.html";
+    const response = await fetch(fFile);
 
+    if (!response.ok) {
+      throw new Error(`Failed to fetch HTML file '${fFile}': ${response.status} ${response.statusText}`);
+    }
+
+    const footer = await response.text();
+    const parser = new DOMParser();
+    const navDom = parser.parseFromString(footer, "text/html");
+    const footEl = navDom.querySelector("footer");
+
+    parentEl.replaceWith(footEl);
+
+  } catch (error) {
+    console.error("Error inserting footer:", error);
+  }
+}
