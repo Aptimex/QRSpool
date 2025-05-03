@@ -12,7 +12,7 @@ def getKnownFilaments(path = "./configs/bambu-ams-codes.json"):
         codes = json.loads(f.read())
     #print(f"Loaded {len(codes)} filament codes")
     return codes
-CODES = getKnownFilaments()
+CODES = getKnownFilaments() #not actualy used, but try loading them at start so errors are apparent
 PRINTER = bl.Printer(IP, ACCESS_CODE, SERIAL)
 EXTERNAL_SPOOL_AMSID = 255
 EXTERNAL_SPOOL_SLOTID = 254
@@ -131,14 +131,6 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0)
     else:
         return False, "Printer rejected request for unknown reasons"
 
-def checkFilamentPatch():
-    test = bl.AMSFilamentSettings("GFG02", 220, 270, "PETG") #PETG-HF
-    try:
-        f = bl.Filament(test)
-    except ValueError as e:
-        print("bambulabs-api library not patched, not all filament types will be supported")
-        print("See the README for more info")
-
 # Combine manufacturer and type, normalize spaces, convert to lowercase, and compare
 # If an exact match isn't found, change the manufacturer to "generic" and look again
 # If that's not found, check if the type is a known code and use that directly
@@ -153,21 +145,27 @@ def filamentToCode(fManufacturer: str, fType: str):
     lookupByCode = fType.strip().lower()
     backupCode = ""
     
-    knownTypes = list(CODES.keys())
+    try:
+        fCodes = getKnownFilaments()
+    except Exception as e:
+        print(f"Unable to load known filament codes: {e}")
+        return None
+    
+    knownTypes = list(fCodes.keys())
     
     for t in knownTypes:
         if lookup == t.lower():
             # Return exact match
-            return CODES[t]
+            return fCodes[t]
         if lookupGeneric == t.lower():
             # This match will be returned later if an exact match isn't found
-            backupCode = CODES[t]
+            backupCode = fCodes[t]
     
     if backupCode != "":
         return backupCode
     
     # No match, check if the filament type is a known code
-    knownCodes = list(CODES.values())
+    knownCodes = list(fCodes.values())
     for c in knownCodes:
         if lookupByCode == c.lower():
             return c

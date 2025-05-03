@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, redirect
-from flask_cors import CORS, cross_origin
+from flask_cors import CORS
 from flask_basicauth import BasicAuth
 import json
 import bambu
@@ -7,7 +7,7 @@ import time
 from threading import Timer
 from base64 import b64encode, b64decode
 
-from configs.bambu_config import AUTH_USER, AUTH_PASS
+from configs.bambu_config import AUTH_USER, AUTH_PASS, INACTIVITY_TIMEOUT
 
 app = Flask(__name__)
 CORS(app) # allow CORS for all domains on all routes.
@@ -19,7 +19,6 @@ basic_auth = BasicAuth(app)
 
 CONNECTED = False
 T: Timer = None
-TIMEOUT = 5*60 #make negative to disable the auto-disconnect
 
 BASIC_AUTH = None
 
@@ -33,8 +32,8 @@ def connect():
     CONNECTED = True
     time.sleep(3) # Give it some time to fully connect
     
-    if TIMEOUT > 0:
-        T = Timer(TIMEOUT, disconnect)
+    if INACTIVITY_TIMEOUT > 0:
+        T = Timer(INACTIVITY_TIMEOUT, disconnect)
         T.cancel()
         T.start()
     
