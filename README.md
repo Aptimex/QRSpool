@@ -2,7 +2,7 @@
 
 # QRSpool
 
-<img align="center" src="client/logo.svg" width="20%">
+<img align="center" src="client/media/logo.svg" width="20%">
 
 </div>
 
