@@ -111,18 +111,27 @@ def getSlots():
     if error:
         return error
     
-    # https://github.com/BambuTools/bambulabs_api/blob/e775d9a1a0eb2f8478d64e6e61dae3c45a4507da/bambulabs_api/mqtt_client.py#L1229
-    # Printers don't seem to return info for slots that have no filament loaded
-    # Possibly the slicers just know to expect slots #0-3 for each AMS and display them as missing if no data is returned
-    # So try to emulate that behavior
     amsh = PRINTER.ams_hub()
-    slots = [emptyTray(0), emptyTray(1), emptyTray(2), emptyTray(3)]
+    slots = []
 
     for amsID, ams in amsh.ams_hub.items():
+        # https://github.com/BambuTools/bambulabs_api/blob/e775d9a1a0eb2f8478d64e6e61dae3c45a4507da/bambulabs_api/mqtt_client.py#L1229
+        # Printers don't seem to return info for slots that have no filament loaded
+        # Possibly the slicers just know to expect slots #0-3 for each AMS and display them as missing if no data is returned
+        # So try to emulate that behavior
+        newSlots = [
+            trayToSlot(amsID, 0, emptyTray(0)),
+            trayToSlot(amsID, 1, emptyTray(1)),
+            trayToSlot(amsID, 2, emptyTray(2)),
+            trayToSlot(amsID, 3, emptyTray(3))
+        ]
+        
         for slotID, tray in ams.filament_trays.items():
             slot = trayToSlot(amsID, slotID, tray)
             #slots.append(slot)
-            slots[slotID] = slot
+            #slots[slotID] = slot
+            newSlots[slotID] = slot
+        slots += newSlots
     
     externalTray = PRINTER.vt_tray()
     slot = trayToSlot(EXTERNAL_SPOOL_AMSID, EXTERNAL_SPOOL_SLOTID, externalTray)
