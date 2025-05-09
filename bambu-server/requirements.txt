@@ -1,4 +1,4 @@
-bambulabs_api @ git+https://github.com/BambuTools/bambulabs_api@f0838aaf963cfdd09178bc45caecd782bf983d9f
+bambulabs_api==2.6.2
 blinker==1.9.0
 click==8.1.8
 Flask==3.1.0

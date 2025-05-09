@@ -117,6 +117,8 @@ If all those tests fail to identify an appropriate code, the server will return 
 
 From my testing Bambu printers seem to ignore any temperature values you specify and just use the ones in the profile settings associated with the code; only the filament code and color seem to matter. So you can completely ommit the temperature fields in your QR codes if you want. 
 
+Currently the server will only return information about AMS slots that have filament loaded into them (plus the external spool). This means if you load the Apply page in the middle of changing out a spool you won't be able to apply a scanned code to that slot until you actually insert the filament into the inlet. 
+
 # Technical Notes
 This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. 
 
@@ -230,3 +232,7 @@ The username and password supplied by the client can be set by the user in the `
 
 ## Bambulabs-api Dependancy
 When I started this project I realized that the `bambulabs-api` [Python library](https://github.com/BambuTools/bambulabs_api) didn't support sending arbitrary filament codes or data, requiring matches against an internal code list that isn't always up-to-date. That was fixed with [this commit](https://github.com/BambuTools/bambulabs_api/pull/130/commits/f0838aaf963cfdd09178bc45caecd782bf983d9f), so the `requirements.txt` file for the backend server references that commit directly. This will updated to point to a normal version number once the next update is released. 
+
+## 3rd Partry Dependancies
+- [jsQR](https://github.com/cozmo/jsQR) is used by the frontend to extract QR code data from the camera feed
+- [bambulabs-api](https://pypi.org/project/bambulabs-api/) is used by the backend server to interact with Bambu printers
