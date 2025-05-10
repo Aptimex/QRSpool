@@ -181,7 +181,7 @@ class FilamentSlot {
                     box.style.backgroundColor = '#' + v;
                     box.classList.add("color-box");
                 } else {
-                    box.classList.add("color-box-unkown");
+                    box.classList.add("color-box-unknown");
                 }
                 td.appendChild(box);
             }
