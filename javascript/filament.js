@@ -175,8 +175,14 @@ class FilamentSlot {
             //Render color box if appropriate
             if (this.colorHexKeys.includes(k)) {
                 let box = document.createElement("div");
-                box.style.backgroundColor = '#' + v;
-                box.classList.add("color-box");
+
+                // regex to check if the string is a valid hex color (3 or 6 hex chars)
+                if (/^([0-9A-Fa-f]{3}){1,2}$/.test(v)) {
+                    box.style.backgroundColor = '#' + v;
+                    box.classList.add("color-box");
+                } else {
+                    box.classList.add("color-box-unkown");
+                }
                 td.appendChild(box);
             }
         });
