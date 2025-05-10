@@ -85,7 +85,7 @@ def emptyTray(trayIDX):
     d = {
         "tray_info_idx": trayIDX,
         "tray_type": "EMPTY",
-        "tray_color": "000000",
+        "tray_color": "xxxxxx",
         "tray_sub_brands": "",
         "nozzle_temp_min": 0,
         "nozzle_temp_max": 0,
