@@ -8,6 +8,8 @@
 
 Change your printer's filament by scanning a QR code with your phone. 
 
+**This project is in Beta. It's functional enough that I use it regularly, but please report any issues you encounter.**
+
 This project consists of two nearly-decoupled components: 
 - A static website ("frontend") that uses client-side Javascript to access your webcam/camera, scan and parse QR codes to extract filament information, and provide a visual interface for applying scanned filament data to a slot on your printer. GitHub Pages hosted instance available at https://qrspool.com
 - A local API server ("backend") that acts as a communication bridge between your printer and browser, translating between standard REST API requests and whatever protocol your printer uses. 
@@ -31,7 +33,7 @@ Requirements:
     - A modern web browser (tested wtih Firefox and Chrome)
 
 > [!NOTE]
-> Currently there is only a backend server for interacting with Bambu printers, and only in LAN mode. Cloud-connected printers could theoretically be supported, but with the upcoming breaking "security" changes they have planned I decided not to spend time writing code to support that. 
+> Currently there is only a backend server for interacting with Bambu printers, and only in LAN mode. Cloud-connected printers could theoretically be supported, but with the [upcoming breaking "security" changes they have planned](https://blog.bambulab.com/firmware-update-introducing-new-authorization-control-system-2/) I decided not to spend time writing code to support that. 
 
 ### Backend Server Setup
 The backend server code is in the `bambu-server` folder. Configuration files are in the `configs` subfolder. 
@@ -100,6 +102,9 @@ I recommend [QR2STL](https://printer.tools/qrcode2stl) for generating printable 
 I've had good luck generating QR codes with this data format that are 30x30mm, printed with a 0.4mm nozzle. Smaller QR codes may be difficult to print with enough detail to be decoded reliably unless you switch to a 0.2mm nozzle. [Here's an example](https://printer.tools/qrcode2stl/#shareQR-eyJlcnJvckNvcnJlY3Rpb25MZXZlbCI6IkwiLCJ0ZXh0IjoiT1MxLjB8UExBIE1hdHRlfDFFODQ0MHxCYW1idXwxOTB8MjQwIiwiYmFzZSI6eyJ3aWR0aCI6MzAsImhlaWdodCI6MzAsImRlcHRoIjoxLCJjb3JuZXJSYWRpdXMiOjIsImhhc0JvcmRlciI6ZmFsc2UsImhhc1RleHQiOnRydWUsInRleHRNYXJnaW4iOjEuMiwidGV4dFNpemUiOjMsInRleHRNZXNzYWdlIjoiQmFtYnUgUExBXG5NYXR0ZSBHcmVlbiIsInRleHREZXB0aCI6MC40LCJoYXNLZXljaGFpbkF0dGFjaG1lbnQiOnRydWUsImtleWNoYWluUGxhY2VtZW50IjoidG9wIiwia2V5Y2hhaW5Ib2xlRGlhbWV0ZXIiOjV9LCJjb2RlIjp7ImRlcHRoIjowLjQsIm1hcmdpbiI6MS4yfX0=) of some good starting settings for generating your own QR codes. 
 
 When printing, use the Arachne wall generation method for best results. 
+
+### Attaching QR Codes to Spools
+I'm currently in the final testing stages for a custom-designed clip that provides multiple options for attaching printed QR codes to filament spools for use with this project. You can [follow me on Makerworld](https://makerworld.com/en/@Aptimex) if you want to be notified as soon as I release it. It will work with models generated using QR2STL that have a 5mm "keychain" hole. 
 
 ### Bambu Printers Caveats
 Currently only the official filament profile names (Brand + Type, displayed in the Filament dropdown in Bambu Studio) are supported. Bambu uses static internal identifiers for each available profile that have to be mapped to the human-readable data supplied in a QR code. For example, you must specify `Bambu` as the Brand and `PLA Matte` as the Type in a QR code, with that exact spelling and case, in order for the server to identify the internal code (`GFA01`) assigned to that profile. The server combines the two fields (inserting a space in between them) and looks for a match in the `bambu-ams-codes.json` file to find the correct code to send to the printer. 
@@ -227,12 +232,13 @@ Authorization: Basic <cred>
 
 The username and password supplied by the client can be set by the user in the `Settings` page, and are stored in the client's local storage, just like the server URL. They are NOT stored in a cookie in order to help prevent accidental exposure to the client website server. 
 
+## Supported Printers
+I have only tested the backend server with my A1 running firmware version 01.04.00.00, with an AMS Lite running firmware version 00.00.07.94. But it should work with any printer and AMS supported by the [bambulabs-api](https://pypi.org/project/bambulabs-api/) library. 
 
 # Other Notes
 
-## Bambulabs-api Dependancy
-When I started this project I realized that the `bambulabs-api` [Python library](https://github.com/BambuTools/bambulabs_api) didn't support sending arbitrary filament codes or data, requiring matches against an internal code list that isn't always up-to-date. That was fixed with [this commit](https://github.com/BambuTools/bambulabs_api/pull/130/commits/f0838aaf963cfdd09178bc45caecd782bf983d9f), so the `requirements.txt` file for the backend server references that commit directly. This will updated to point to a normal version number once the next update is released. 
-
 ## 3rd Partry Dependancies
 - [jsQR](https://github.com/cozmo/jsQR) is used by the frontend to extract QR code data from the camera feed
+- [Bootstrap] (https://getbootstrap.com/) is used by frontend for UI/UX enhancements
 - [bambulabs-api](https://pypi.org/project/bambulabs-api/) is used by the backend server to interact with Bambu printers
+    - This project requires bambulabs-api version 2.6.2 or later due to a bug in previous versions limiting the types of filament settings that could be applied
