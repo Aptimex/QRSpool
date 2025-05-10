@@ -239,6 +239,6 @@ I have only tested the backend server with my A1 running firmware version 01.04.
 
 ## 3rd Partry Dependancies
 - [jsQR](https://github.com/cozmo/jsQR) is used by the frontend to extract QR code data from the camera feed
-- [Bootstrap] (https://getbootstrap.com/) is used by frontend for UI/UX enhancements
+- [Bootstrap](https://getbootstrap.com/) is used by frontend for UI/UX enhancements
 - [bambulabs-api](https://pypi.org/project/bambulabs-api/) is used by the backend server to interact with Bambu printers
     - This project requires bambulabs-api version 2.6.2 or later due to a bug in previous versions limiting the types of filament settings that could be applied
