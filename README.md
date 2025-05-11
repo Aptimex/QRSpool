@@ -6,7 +6,7 @@
 
 </div>
 
-Change your printer's filament by scanning a QR code with your phone. 
+Change your printer's filament by scanning a QR code with your phone. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8)
 
 **This project is in Beta. It's functional enough that I use it regularly, but please report any issues you encounter.**
 
