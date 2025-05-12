@@ -10,6 +10,7 @@
         <script src="javascript/filament.js"></script>
         <script src="javascript/server.js"></script>
         <script src="javascript/nav.js"></script>
+        <script src="javascript/nfc.js" defer></script>
         
         <link rel="stylesheet" href="./css/global.css">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
@@ -21,6 +22,9 @@
 
         <main class="flex-shrink-0">
             <div class="container">
+
+                <div id="nfc-status">NFC Scanner Disabled</div>
+                <button onclick="readNFC()" id="btn-enable-nfc">Enable NFC Scanner</button>
         
                 <p id="error"></p>
                 

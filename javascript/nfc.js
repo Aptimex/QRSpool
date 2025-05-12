@@ -1,5 +1,6 @@
 
 // Redirect console output to window
+/*
 (function() {
   const oldLog = console.log;
   const logElementId = 'console-output';
@@ -19,60 +20,33 @@
     logElement.appendChild(p);
   };
 })();
-
-/*
-if ('NDEFReader' in window) {
-    readNFC();
-}
 */
 
 function parseNFCData(data) {
-    console.log("Parsing tag data: " + data);
-    var tagData = JSON.parse(data);
-    if (tagData == null) {
-        console.log("Invalid data read: [empty]");
+    //console.log("Parsing tag data: " + data);
+    var fosTag = FilamentOpenSpool.newEmpty();
+    if ( !(fosTag.parseDataString(data)) ) {
+        console.log("Error parsing NFC tag data");
         return null;
     }
-
-    try {
-        let protocol = tagData.protocol;
-        if (protocol.toLowerCase() != "openspool") {
-            console.log("Invalid tag protocol, must be 'openspool': " + protocol);
-            return null;
-        }
-    } catch (e) {
-        console.log("Error processing tag: " + e);
-        return null;
-    }
-    console.log("Protocol is correct");
-
-    try {
-        var fosTag = new FilamentOpenSpool(
-            tagData.type,
-            tagData.color_hex,
-            tagData.brand,
-            tagData.min_temp,
-            tagData.max_temp
-        );
-    } catch (e) {
-        console.log("Error processing tag: " + e);
-        return null;
-    }
-    fosTag.rawData = fosTag.toDataString();
-    console.log("Parse successful");
 
     return fosTag;
 }
 
 function readNFC() {
     if (!('NDEFReader' in window)) {
-        console.log("NFC not supported by your browser");
+        nfcDisabled("");
+        document.querySelector("#nfc-status").hidden = true;
+        document.querySelector("#btn-enable-nfc").hidden = true;
+        console.log("NFC not supported by your browser; it currently is only available on Chrome for Android.")
         return null;
     }
 
+    nfcEnabled();
+
     const ndef = new NDEFReader();
     ndef.scan().then(() => {
-        console.log("Scan started successfully.");
+        //console.log("NFC Scanner Enabled.");
         ndef.onreadingerror = () => {
             console.log("Error readting the NFC tag. Try another one?");
         };
@@ -80,10 +54,6 @@ function readNFC() {
             console.log("NDEF message read.");
             const message = event.message;
             for (const record of message.records) {
-                console.log("Record type:  " + record.recordType);
-                console.log("MIME type:    " + record.mediaType);
-                console.log("Record id:    " + record.id);
-
                 switch (record.recordType) {
                 case "text":
                     // Read text record with record data, lang, and encoding.
@@ -98,6 +68,7 @@ function readNFC() {
 
                     console.log("Activating tag");
                     activateTag(tag);
+                    window.location.href = "apply.html";
                     break;
                 default:
                     console.log("Record type not supported (must be text): " + record.recordType);
@@ -107,7 +78,24 @@ function readNFC() {
 
     }).catch(error => {
         console.log(`Error! Scan failed to start: ${error}.`);
+        nfcDisabled(error);
     });
 
 }
 
+// This doesn't enable NFC, just handles things that should happen when it is
+function nfcEnabled() {
+    document.querySelector("#btn-enable-nfc").hidden = true;
+    document.querySelector("#nfc-status").innerText = "NFC Scanner Enabled";
+}
+
+function nfcDisabled(error = null) {
+    if (error == null) {
+        document.querySelector("#nfc-status").innerText = "NFC Scanner Disabled";
+    } else {
+        document.querySelector("#nfc-status").innerText = "NFC Scanner error: " + error;
+    }
+    document.querySelector("#btn-enable-nfc").hidden = false;
+}
+
+readNFC();

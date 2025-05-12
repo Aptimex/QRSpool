@@ -37,6 +37,17 @@ class FilamentOpenSpool {
     }
     
     parseDataString(data) {
+        // If valid JSON, parse it as a proper OpenSpool tag
+        console.log("Parsing tag data: " + data);
+        try {
+            JSON.parse(data); //just check if it's valid JSON
+            console.log("JSON detected");
+            return this.parseJSONString(data);
+        } catch (e) {
+            // continue, treat as a QR string
+            console.log("Not JSON");
+        }
+
         if (! FilamentOpenSpool.isValidFormat(data)) {
             //console.log("Invalid data format")
             return false;
@@ -54,6 +65,46 @@ class FilamentOpenSpool {
         } catch (e) {
             console.log(e);
             //still return true to support tags missing the later less-important fields
+        }
+        return true
+    }
+
+    // Prase a full OpenSpool JSON string
+    parseJSONString(data) {
+        if (data == null || data == "") {
+            console.log("Empty data");
+            return false;
+        }
+
+        if (typeof data === 'object') {
+            var tagObj = data;
+        } else {
+            // If it's a string, try to parse it as JSON
+            try {
+                var tagObj = JSON.parse(data);
+            } catch (e) {
+                console.log("Error parsing JSON: " + e);
+                return false;
+            }
+        }
+
+        try {
+            //let tagData = JSON.parse(data);
+            this.rawData = JSON.stringify(tagObj);
+
+            this.displayProtocol = tagObj.protocol;
+            this.type = tagObj.type;
+            this.colorHex = tagObj.color_hex;
+            this.brand = tagObj.brand;
+            this.minTemp = tagObj.min_temp;
+            this.maxTemp = tagObj.max_temp;
+        } catch (e) {
+            console.log(e);
+            return false;
+        }
+        if (this.displayProtocol.toLowerCase() != "openspool") {
+            console.log("Invalid tag protocol, must be 'openspool', but got: " + this.displayProtocol);
+            return false;
         }
         return true
     }
