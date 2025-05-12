@@ -104,7 +104,7 @@ I've had good luck generating QR codes with this data format that are 30x30mm, p
 When printing, use the Arachne wall generation method for best results. 
 
 ### Attaching QR Codes to Spools
-I'm currently in the final testing stages for a custom-designed clip that provides multiple options for attaching printed QR codes to filament spools for use with this project. You can [follow me on Makerworld](https://makerworld.com/en/@Aptimex) if you want to be notified as soon as I release it. It will work with models generated using QR2STL that have a 5mm "keychain" hole. 
+I designed a custom clip that provides multiple options for attaching printed QR codes to filament spools for use with this project, [available here.](https://makerworld.com/en/models/1408538-filament-clip-for-qrspool-tags) It will work with models generated using QR2STL that have a 5mm "keychain" hole. 
 
 ### Bambu Printers Caveats
 Currently only the official filament profile names (Brand + Type, displayed in the Filament dropdown in Bambu Studio) are supported. Bambu uses static internal identifiers for each available profile that have to be mapped to the human-readable data supplied in a QR code. For example, you must specify `Bambu` as the Brand and `PLA Matte` as the Type in a QR code, with that exact spelling and case, in order for the server to identify the internal code (`GFA01`) assigned to that profile. The server combines the two fields (inserting a space in between them) and looks for a match in the `bambu-ams-codes.json` file to find the correct code to send to the printer. 
