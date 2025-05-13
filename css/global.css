@@ -19,3 +19,17 @@
 pre {
     background-color: whitesmoke;
 }
+
+/* Define a CSS animation named "blink" */
+@keyframes pulse {
+    0%,
+    100% {
+        color: skyblue;
+    }
+    50% {
+        color: black;
+    }
+}
+.pulsing-text {
+    animation: pulse 2s linear infinite;
+}

@@ -91,6 +91,7 @@ function readNFC() {
 function nfcEnabled() {
     document.querySelector("#btn-enable-nfc").hidden = true;
     document.querySelector("#nfc-status").innerText = "NFC Scanner Enabled";
+    document.querySelector("#nfc-status").classList.add("pulsing-text");
 }
 
 function nfcDisabled(error = null) {
@@ -100,6 +101,7 @@ function nfcDisabled(error = null) {
         document.querySelector("#nfc-status").innerText = "NFC Scanner error: " + error;
     }
     document.querySelector("#btn-enable-nfc").hidden = false;
+    document.querySelector("#nfc-status").classList.remove("pulsing-text");
 }
 
 readNFC();
