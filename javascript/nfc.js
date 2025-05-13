@@ -68,7 +68,11 @@ function readNFC() {
 
                     console.log("Activating tag");
                     activateTag(tag);
-                    window.location.href = "apply.html";
+
+                    // Slight delay to prevent double reads
+                    setTimeout(() => {
+                        window.location.href = "apply.html";
+                    }, 300);
                     break;
                 default:
                     console.log("Record type not supported (must be text): " + record.recordType);
