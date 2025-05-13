@@ -4,7 +4,7 @@ class FilamentOpenSpool {
     static version = "1.0";
     static delim = "|";
     static displayMap = {
-        "rawData": "Raw QR Data",
+        "rawData": "Raw Tag Data",
         "displayProtocol": "Tag Protocol",
         "type": "Type",
         "colorHex": "Color",
@@ -27,32 +27,39 @@ class FilamentOpenSpool {
         return new FilamentOpenSpool("", "", "", "", "");
     }
     
+    // This doesn't fully validate the input, just does some light sanity checking to quickly discard stuff that is obviously not worth parsing
     static isValidFormat(data) {
         let header = "" + FilamentOpenSpool.protocol + FilamentOpenSpool.version + FilamentOpenSpool.delim;
         let headerLen = header.length;
         if (data.substring(0,headerLen) == header) {
             return true;
         }
+
+        // Not QR format, check if it's OpenSpool JSON
+        try {
+            let x = JSON.parse(data);
+            if (x.protocol.toLowerCase() == "openspool") {
+                return true;
+            }
+        } catch (e) {
+            return false;
+        }
         return false;
     }
     
     parseDataString(data) {
-        // If valid JSON, parse it as a proper OpenSpool tag
-        console.log("Parsing tag data: " + data);
-        try {
-            JSON.parse(data); //just check if it's valid JSON
-            console.log("JSON detected");
-            return this.parseJSONString(data);
-        } catch (e) {
-            // continue, treat as a QR string
-            console.log("Not JSON");
-        }
-
         if (! FilamentOpenSpool.isValidFormat(data)) {
-            //console.log("Invalid data format")
             return false;
         }
         this.rawData = data;
+
+        //If it's valid JSON, try to parse it as a proper OpenSpool tag
+        try {
+            JSON.parse(data);
+            return this.parseJSONString(data);
+        } catch (e) {
+            // Not valid JSON, treat as a QR string
+        }
         
         let fields = data.split(FilamentOpenSpool.delim);
         try {
@@ -76,7 +83,7 @@ class FilamentOpenSpool {
             return false;
         }
 
-        if (typeof data === 'object') {
+        if (typeof data === 'object') { //handle object that was already parsed
             var tagObj = data;
         } else {
             // If it's a string, try to parse it as JSON
