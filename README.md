@@ -86,6 +86,9 @@ Use any webserver of your choice to host the `client` folder. For example, `pyth
 
 If you want fully-offline local hosting, you'll need to download the `Bootstrap` (CSS and Javascript) and `jsQR` files referenced in each HTML file and modify those references to point to the downloaded files. 
 
+### NFC
+The Chrome browser on Android has support for reading NFC tags if your phone has NFC hardware (most do). While using a supported broswer the Scan and Apply pages will present a button at the top to enable NFC, which will prompt the browser to ask you for permission to enable that feature. Once enabled you can scan NFC tags formatted with the [OpenSpool data protocol](https://openspool.io/rfid.html#protocol) to get filament data that you can then apply. 
+
 ## QR Code Data Format
 This project supports QR codes with the following data format:
 ```

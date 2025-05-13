@@ -18,7 +18,7 @@ function setActiveTagData(stringData) {
     console.log("Active tag set: " + stringData);
 }
 
-function getActiveTagData(stringData) {
+function getActiveTagData() {
     return localStorage.getItem("activeTag");
 }
 

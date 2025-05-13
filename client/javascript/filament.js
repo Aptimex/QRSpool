@@ -4,7 +4,7 @@ class FilamentOpenSpool {
     static version = "1.0";
     static delim = "|";
     static displayMap = {
-        "rawData": "Raw QR Data",
+        "rawData": "Raw Tag Data",
         "displayProtocol": "Tag Protocol",
         "type": "Type",
         "colorHex": "Color",
@@ -27,21 +27,39 @@ class FilamentOpenSpool {
         return new FilamentOpenSpool("", "", "", "", "");
     }
     
+    // This doesn't fully validate the input, just does some light sanity checking to quickly discard stuff that is obviously not worth parsing
     static isValidFormat(data) {
         let header = "" + FilamentOpenSpool.protocol + FilamentOpenSpool.version + FilamentOpenSpool.delim;
         let headerLen = header.length;
         if (data.substring(0,headerLen) == header) {
             return true;
         }
+
+        // Not QR format, check if it's OpenSpool JSON
+        try {
+            let x = JSON.parse(data);
+            if (x.protocol.toLowerCase() == "openspool") {
+                return true;
+            }
+        } catch (e) {
+            return false;
+        }
         return false;
     }
     
     parseDataString(data) {
         if (! FilamentOpenSpool.isValidFormat(data)) {
-            //console.log("Invalid data format")
             return false;
         }
         this.rawData = data;
+
+        //If it's valid JSON, try to parse it as a proper OpenSpool tag
+        try {
+            JSON.parse(data);
+            return this.parseJSONString(data);
+        } catch (e) {
+            // Not valid JSON, treat as a QR string
+        }
         
         let fields = data.split(FilamentOpenSpool.delim);
         try {
@@ -54,6 +72,46 @@ class FilamentOpenSpool {
         } catch (e) {
             console.log(e);
             //still return true to support tags missing the later less-important fields
+        }
+        return true
+    }
+
+    // Prase a full OpenSpool JSON string
+    parseJSONString(data) {
+        if (data == null || data == "") {
+            console.log("Empty data");
+            return false;
+        }
+
+        if (typeof data === 'object') { //handle object that was already parsed
+            var tagObj = data;
+        } else {
+            // If it's a string, try to parse it as JSON
+            try {
+                var tagObj = JSON.parse(data);
+            } catch (e) {
+                console.log("Error parsing JSON: " + e);
+                return false;
+            }
+        }
+
+        try {
+            //let tagData = JSON.parse(data);
+            this.rawData = JSON.stringify(tagObj);
+
+            this.displayProtocol = tagObj.protocol;
+            this.type = tagObj.type;
+            this.colorHex = tagObj.color_hex;
+            this.brand = tagObj.brand;
+            this.minTemp = tagObj.min_temp;
+            this.maxTemp = tagObj.max_temp;
+        } catch (e) {
+            console.log(e);
+            return false;
+        }
+        if (this.displayProtocol.toLowerCase() != "openspool") {
+            console.log("Invalid tag protocol, must be 'openspool', but got: " + this.displayProtocol);
+            return false;
         }
         return true
     }
