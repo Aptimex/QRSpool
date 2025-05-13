@@ -11,6 +11,7 @@ var outputData = document.getElementById("outputData");
 var camTrack = null;
 var isTorchOn = false;
 var torchStartsOn = getTorchStart();
+var keepLooking = true;
 
 function drawLine(begin, end, color) {
     canvas.beginPath();
@@ -41,6 +42,9 @@ navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).th
 });
 
 function tick() {
+    if ( !(keepLooking) ) {
+        return;
+    }
     loadingMessage.innerText = "⌛ Loading video..."
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
         loadingMessage.hidden = true;
@@ -114,6 +118,7 @@ function handleCodeData(data) {
         return;
     }
     
+    keepLooking = false;
     activateTag(tag);
     window.location.href = "./apply.html"
 }
