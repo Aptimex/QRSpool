@@ -6,7 +6,7 @@
 
 </div>
 
-Change your printer's filament by scanning a QR code with your phone. Also supports OpenSpool NFC tags on Chrome for Android. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8)
+Change your printer's filament by scanning a QR code with your phone. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8). Also supports OpenSpool NFC tags on Chrome for Android, and NFC tags with URI (web URL) targets on most/all smartphones. 
 
 **This project is in Beta. It's functional enough that I use it regularly, but please report any issues you encounter.**
 
@@ -86,9 +86,6 @@ Use any webserver of your choice to host the `client` folder. For example, `pyth
 
 If you want fully-offline local hosting, you'll need to download the `Bootstrap` (CSS and Javascript) and `jsQR` files referenced in each HTML file and modify those references to point to the downloaded files. 
 
-### NFC
-The Chrome browser on Android has support for reading NFC tags if your phone has NFC hardware (most do). While using a supported broswer the Scan and Apply pages will present a button at the top to enable NFC, which will prompt the browser to ask you for permission to enable that feature. Once enabled you can scan NFC tags formatted with the [OpenSpool data protocol](https://openspool.io/rfid.html#protocol) to get filament data that you can then apply. 
-
 ## QR Code Data Format
 This project supports QR codes with the following data format:
 ```
@@ -126,6 +123,21 @@ If all those tests fail to identify an appropriate code, the server will return 
 From my testing Bambu printers seem to ignore any temperature values you specify and just use the ones in the profile settings associated with the code; only the filament code and color seem to matter. So you can completely ommit the temperature fields in your QR codes if you want. 
 
 Currently the server will only return information about AMS slots that have filament loaded into them (plus the external spool). This means if you load the Apply page in the middle of changing out a spool you won't be able to apply a scanned code to that slot until you actually insert the filament into the inlet. 
+
+## Using NFC Tags
+The Chrome browser on Android has support for reading NFC tags if your phone has NFC hardware (most do). While using a supported broswer the Scan and Apply pages will present a button at the top to enable NFC, which will prompt the browser to ask you for permission to enable that feature. Once enabled you can scan NFC tags formatted with the [OpenSpool data protocol](https://openspool.io/rfid.html#protocol) to get filament data that you can then apply. 
+
+### Using URL Parameters
+You can pass filament data to the scan page (the website root) using URL parameters. It accepts the following formats (and checks for them in this order):
+- `?qrstring=X`, where `X` is the same data string that you would write to a QR code. 
+- `?osjson=X`, where `X` is the JSON string that you would write to an OpenSpook NFC tag (with no line breaks). 
+- The 6 OpenSpool filament data keys as individual parameters. For example, `?type=A&color_hex=B&brand=C&minTemp=D&maxTemp=E`. The presence of the `type` key is required to trigger processing this format. 
+
+This allows you to create NFC tags with URL targets, which most modern smartphones will process natively without the need to have a specific app open. For example, you could create a NFC tag containing a link like this: 
+```
+https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230
+```
+When you tap that tag with your phone it should immediately open that link in a browser (probably asking you for confirmation first), parse the tag data in the URL, and take you to the Apply screen with the new tag data ready to apply. 
 
 # Technical Notes
 This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. 

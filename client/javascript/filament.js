@@ -1,4 +1,4 @@
-// Example QR data format: openspool1.0|PLA|0a2b3c|SomeBrand|210|230
+// Example QR data format: OS1.0|PLA|0a2b3c|SomeBrand|210|230
 class FilamentOpenSpool {
     static protocol = "OS";
     static version = "1.0";
@@ -21,6 +21,10 @@ class FilamentOpenSpool {
         this.brand = brand;
         this.minTemp = minTemp;
         this.maxTemp = maxTemp;
+
+        if (this.rawData == null) {
+            this.rawData = this.toQRString();
+        }
     }
     
     static newEmpty() {
@@ -51,16 +55,21 @@ class FilamentOpenSpool {
         if (! FilamentOpenSpool.isValidFormat(data)) {
             return false;
         }
-        this.rawData = data;
 
         //If it's valid JSON, try to parse it as a proper OpenSpool tag
         try {
             JSON.parse(data);
+            console.log("Parsing JSON tag data");
             return this.parseJSONString(data);
         } catch (e) {
             // Not valid JSON, treat as a QR string
+            console.log("Parsing QR string");
+            return this.parseQRString(data);
         }
-        
+    }
+
+    parseQRString(data) {
+        this.rawData = data;
         let fields = data.split(FilamentOpenSpool.delim);
         try {
             this.displayProtocol = fields[0] ? fields[0] : "";
@@ -73,6 +82,7 @@ class FilamentOpenSpool {
             console.log(e);
             //still return true to support tags missing the later less-important fields
         }
+
         return true
     }
 
@@ -85,10 +95,12 @@ class FilamentOpenSpool {
 
         if (typeof data === 'object') { //handle object that was already parsed
             var tagObj = data;
+            this.rawData = JSON.stringify(tagObj);
         } else {
             // If it's a string, try to parse it as JSON
             try {
                 var tagObj = JSON.parse(data);
+                this.rawData = data;
             } catch (e) {
                 console.log("Error parsing JSON: " + e);
                 return false;
@@ -96,9 +108,6 @@ class FilamentOpenSpool {
         }
 
         try {
-            //let tagData = JSON.parse(data);
-            this.rawData = JSON.stringify(tagObj);
-
             this.displayProtocol = tagObj.protocol;
             this.type = tagObj.type;
             this.colorHex = tagObj.color_hex;
@@ -157,7 +166,7 @@ class FilamentOpenSpool {
     }
     
     // Return the data that should be placed in a QR code
-    toDataString() {
+    toQRString() {
         let d = FilamentOpenSpool.delim;
         let str = "" + FilamentOpenSpool.protocol + FilamentOpenSpool.version + d;
         str += this.type + d;
@@ -165,6 +174,18 @@ class FilamentOpenSpool {
         str += this.brand + d;
         str += this.minTemp + d;
         str += this.maxTemp;
+        return str;
+    }
+
+    toOpenSpoolJSON() {
+        let str = "{";
+        str += '"protocol":"openspool",';
+        str += '"type":"' + this.type + '",';
+        str += '"color_hex":"' + this.colorHex + '",';
+        str += '"brand":"' + this.brand + '",';
+        str += '"min_temp":"' + this.minTemp + '",';
+        str += '"max_temp":"' + this.maxTemp + '"';
+        str += "}";
         return str;
     }
 }
