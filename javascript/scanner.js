@@ -105,20 +105,49 @@ function toggleTorch() {
     }
 }
 
-function handleCodeData(data) {
-    //let tag = new FilamentOpenSpool();
-    let tag = FilamentOpenSpool.newEmpty();
-    let result = tag.parseDataString(data);
-    if (! result) {
-        if (! data || data.length < 1) {
-            console.log("Invalid data read: [empty]");
+function handleCodeData(data, tag=null) {
+    if (tag == null) {
+        tag = FilamentOpenSpool.newEmpty();
+        if (! tag.parseDataString(data)) {
+            if (! data || data.length < 1) {
+                console.log("Invalid data read: [empty]");
+                return;
+            }
+            console.log("Invalid data read: " + data);
             return;
         }
-        console.log("Invalid data read: " + data);
-        return;
     }
-    
+
     keepLooking = false;
     activateTag(tag);
     window.location.href = "./apply.html"
 }
+
+
+function handleURLParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('qrstring')) {
+        console.log("Handling qrstring param");
+        return handleCodeData(urlParams.get('qrstring'));
+    }
+    if (urlParams.has('osjson')) {
+        console.log("Handling osjson param");
+        return handleCodeData(urlParams.get('osjson'));
+    }
+
+    if (urlParams.has("type")) {
+        console.log("Handling individual data params");
+        let type = urlParams.get('type');
+        let colorHex = urlParams.get('colorHex') ?? "xxxxxx";
+        let brand = urlParams.get('brand') ?? "";
+        let minTemp = urlParams.get('minTemp') ?? "0";
+        let maxTemp = urlParams.get('maxTemp') ?? "0";
+
+        let tag = new FilamentOpenSpool(type, colorHex, brand, minTemp, maxTemp);
+        return handleCodeData(null, tag);
+    }
+
+    console.log("No valid URL params to parse");
+}
+
+handleURLParams();
