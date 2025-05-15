@@ -138,10 +138,10 @@ function handleURLParams() {
     if (urlParams.has("type")) {
         console.log("Handling individual data params");
         let type = urlParams.get('type');
-        let colorHex = urlParams.get('colorHex') ?? "xxxxxx";
+        let colorHex = urlParams.get('color_hex') ?? "xxxxxx";
         let brand = urlParams.get('brand') ?? "";
-        let minTemp = urlParams.get('minTemp') ?? "0";
-        let maxTemp = urlParams.get('maxTemp') ?? "0";
+        let minTemp = urlParams.get('min_temp') ?? "0";
+        let maxTemp = urlParams.get('max_temp') ?? "0";
 
         let tag = new FilamentOpenSpool(type, colorHex, brand, minTemp, maxTemp);
         return handleCodeData(null, tag);
