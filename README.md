@@ -131,7 +131,7 @@ The Chrome browser on Android has support for reading NFC tags if your phone has
 You can pass filament data to the scan page (the website root) using URL parameters. It accepts the following formats (and checks for them in this order):
 - `?qrstring=X`, where `X` is the same data string that you would write to a QR code. 
 - `?osjson=X`, where `X` is the JSON string that you would write to an OpenSpook NFC tag (with no line breaks). 
-- The 6 OpenSpool filament data keys as individual parameters. For example, `?type=A&color_hex=B&brand=C&minTemp=D&maxTemp=E`. The presence of the `type` key is required to trigger processing this format. 
+- The 6 OpenSpool filament data keys as individual parameters. For example, `?type=A&color_hex=B&brand=C&min_temp=D&max_temp=E`. The presence of the `type` key is required to trigger processing this format. 
 
 This allows you to create NFC tags with URL targets, which most modern smartphones will process natively without the need to have a specific app open. For example, you could create a NFC tag containing a link like this: 
 ```
