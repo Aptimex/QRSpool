@@ -127,6 +127,8 @@ Currently the server will only return information about AMS slots that have fila
 ## Using NFC Tags
 The Chrome browser on Android has support for reading NFC tags if your phone has NFC hardware (most do). While using a supported broswer the Scan and Apply pages will present a button at the top to enable NFC, which will prompt the browser to ask you for permission to enable that feature. Once enabled you can scan NFC tags formatted with the [OpenSpool data protocol](https://openspool.io/rfid.html#protocol) to get filament data that you can then apply. 
 
+Currently this project doesn't support writing NFC tags through the website. I recommend using either [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter) apps for writing tags. 
+
 ### Using URL Parameters
 You can pass filament data to the scan page (the website root) using URL parameters. It accepts the following formats (and checks for them in this order):
 - `?qrstring=X`, where `X` is the same data string that you would write to a QR code. 
@@ -138,6 +140,9 @@ This allows you to create NFC tags with URL targets, which most modern smartphon
 https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230
 ```
 When you tap that tag with your phone it should immediately open that link in a browser (probably asking you for confirmation first), parse the tag data in the URL, and take you to the Apply screen with the new tag data ready to apply. 
+
+> [!TIP]
+> You can set multiple NDEF records in a NFC tag. Most smartphones will natively only try to process the first record, but most dedicated readers (including qrspool.com) will try to process all records. You can set the first record to be a URL link and the second record to be a text record (with OpenSpool JSON or a QR data string) for maximum compatibility. 
 
 # Technical Notes
 This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. 
