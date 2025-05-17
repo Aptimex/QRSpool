@@ -20,7 +20,21 @@ pre {
     background-color: whitesmoke;
 }
 
-/* Define a CSS animation named "blink" */
+.copy-box {
+    background-color: lightgray;
+    display: block;
+    padding: 1rem;
+    position: relative;
+    word-wrap: break-word;
+}
+
+.btn-clipboard {
+    position: absolute;
+	top: .5rem;
+	right: .5rem;
+    opacity: 0.5;
+}
+
 @keyframes pulse {
     0%,
     100% {
