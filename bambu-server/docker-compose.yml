@@ -1,6 +1,7 @@
 services:
   bambu-api-server:
     container_name: bambu-api-server
+    restart: unless-stopped
     build:
       context: .
     volumes:
