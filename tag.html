@@ -66,10 +66,16 @@
 
                 <h1>Current Tag Strings</h1>
                 <h2>QR String</h2>
-                <div id="QR-string"></div>
+                <div class="copy-box">
+                    <p id="QR-string"></p>
+                    <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#QR-string')">Copy</button>
+                </div>
 
                 <h2>OpenSpool JSON String</h2>
-                <div id="OS-JSON"></div>
+                <div class="copy-box">
+                    <p id="OS-JSON"></p>
+                    <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#OS-JSON')">Copy</button>
+                </div>
 
             </div>
         </main>
@@ -103,6 +109,11 @@
             else {
                 console.log("Error creating tag");
             }
+        }
+
+        function toClipboard(selector) {
+            let text = document.querySelector(selector).innerText;
+            navigator.clipboard.writeText(text);
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
