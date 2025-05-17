@@ -188,6 +188,14 @@ class FilamentOpenSpool {
         str += "}";
         return str;
     }
+
+    toSTLLink() {
+        let s = "https://printer.tools/qrcode2stl/#shareQR-";
+        let qrstring = this.toQRString();
+        let json = `{"errorCorrectionLevel":"L","text":"${qrstring}","base":{"width":30,"height":30,"depth":1,"cornerRadius":2,"hasBorder":false,"hasText":true,"textMargin":1.2,"textSize":3,"textMessage":"${this.brand} ${this.type}\\n#${this.colorHex}","textDepth":0.4,"hasKeychainAttachment":true,"keychainPlacement":"top","keychainHoleDiameter":5},"code":{"depth":0.4,"margin":1.2}}`;
+        console.log(json);
+        return s + btoa(json);
+    }
 }
 
 class FilamentSlot {
