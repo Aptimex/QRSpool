@@ -21,6 +21,7 @@
 
         <main class="flex-shrink-0">
             <div class="container">
+                <p id="error"></p>
 
                 <form action="">
                     <h1>Make Tag</h1>
@@ -60,7 +61,8 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-primary btn-sm" type="button" name="makeTag", onclick="buildTag()">Make Tag</button>
+                    <button class="btn btn-primary" type="button" name="makeTag", onclick="buildTag()">Make Tag</button>
+                    <button class="btn btn-warning" type="button" name="makeTag", onclick="clearBuilder()">Clear Form</button>
 
                 </form>
 
@@ -77,6 +79,13 @@
                     <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#OS-JSON')">Copy</button>
                 </div>
 
+                <h2>STL Generator</h2>
+                <a href="#" id="STL-anchor">Go to link</a>
+                <div class="copy-box">
+                    <p id="STL-link"></p>
+                    <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#STL-link')">Copy</button>
+                </div>
+
             </div>
         </main>
 
@@ -88,8 +97,25 @@
     <script>
         tag = parseActiveTag();
         if (tag) {
+            document.querySelector("#tagType").value = tag.type;
+            document.querySelector("#colorHex").value = tag.colorHex;
+            document.querySelector("#brand").value = tag.brand;
+            document.querySelector("#minTemp").value = tag.minTemp;
+            document.querySelector("#maxTemp").value = tag.maxTemp;
+
             document.querySelector("#QR-string").innerText = tag.toQRString();
             document.querySelector("#OS-JSON").innerText = tag.toOpenSpoolJSON();
+
+            document.querySelector("#STL-anchor").href = tag.toSTLLink();
+            document.querySelector("#STL-link").innerText = tag.toSTLLink();
+        }
+
+        function clearBuilder() {
+            document.querySelector("#tagType").value = "";
+            document.querySelector("#colorHex").value = "";
+            document.querySelector("#brand").value = "";
+            document.querySelector("#minTemp").value = "";
+            document.querySelector("#maxTemp").value = "";
         }
 
         function buildTag() {
