@@ -39,6 +39,22 @@
                     <label for="basic-url" class="form-label">Server Password</label>
                     <div class="input-group">
                         <input type="password" class="form-control" id="serverPass">
+                        <button class="btn btn-outline-secondary" type="button" id="togglePassBtn" onclick="toggleServerPassVis()">
+                            Show
+                        </button>
+                        <script>
+                        function toggleServerPassVis() {
+                            const passInput = document.getElementById('serverPass');
+                            const btn = document.getElementById('togglePassBtn');
+                            if (passInput.type === 'password') {
+                                passInput.type = 'text';
+                                btn.textContent = 'Hide';
+                            } else {
+                                passInput.type = 'password';
+                                btn.textContent = 'Show';
+                            }
+                        }
+                        </script>
                     </div>
                 
                     <button class="btn btn-primary btn-sm" type="button" name="save", onclick="saveServerInfo()">
