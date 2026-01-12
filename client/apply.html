@@ -29,21 +29,27 @@
                 <p id="error"></p>
                 
                 <h1>Scanned Tag</h1>
-                <div id="savedFilamentTag">
-                </div>
+                <div id="savedFilamentTag"></div>
 
                 <br>
                 <br>
 
-                <h1>Available Filament Slots</h2>
+                <h2>Quick Apply</h2>
+                <div id="filamentSlotsQuick"></div>
+                <br><hr><br>
+
+                <h2>Available Filament Slots</h2>
                 <p>
                     Missing AMS slots?
                     <button class="btn btn-secondary btn-sm" type="button" name="reconnect", onclick="serverPrinterReconnect(); showFilamentSlots()">
                         Force Printer Refresh
                     </button>
                 </p>
-                <div id="filamentSlots">
-                </div>
+                
+                
+
+
+                <div id="filamentSlots"></div>
 
                 <div class="alert alert-info error-div collapse.show" role="alert">
                     <span id="slotError"></span>
@@ -89,7 +95,8 @@
                     );
 
                     errorParent.classList.add("collapse");
-                    slotObj.display(document.querySelector("#filamentSlots"));
+                    slotObj.displayQuick(document.querySelector("#filamentSlotsQuick"));
+                    slotObj.display(document.querySelector("#filamentSlots")); 
                 });
 
             } catch (e) {
