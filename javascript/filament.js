@@ -303,6 +303,24 @@ class FilamentSlot {
         };
         parentEl.appendChild(tbl);
     }
+
+    // Quick apply buttons
+    // Will be inserted as a child of the parentEl DOM element
+    displayQuick(parentEl) {
+        //Add a quick button for applying the current filament tag to this slot. 
+        let apply = document.createElement("button");
+        apply.innerText = this.displayID;
+        apply.classList.add("btn", "btn-primary", "m-1");
+        apply.dataset.ids = JSON.stringify(this.ids);
+        apply.onclick = async function() {
+            this.parentElement.lastChild.innerText = "Applying, please wait 5-10 seconds..."
+            await setFilamentSlotFromTag(this.dataset.ids);
+            showFilamentSlots();
+            
+        }
+
+        parentEl.appendChild(apply);
+    }
 }
 
 function parseActiveTag() {
