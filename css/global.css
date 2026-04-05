@@ -47,3 +47,9 @@ pre {
 .pulsing-text {
     animation: pulse 2s linear infinite;
 }
+
+#error {
+    font-weight: bold;
+    color: maroon;
+    font-size: 2em;
+}

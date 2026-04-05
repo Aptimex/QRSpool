@@ -112,6 +112,9 @@
                     <tr scope="row">
                         <th>Creds are valid?</th><td scope="col" id="showGoodCreds"></td>
                     </tr>
+                    <tr scope="row">
+                        <th>Server version</th><td scope="col" id="showServerVersion"></td>
+                    </tr>
                 </table>
 
                 <div class="form-check">
@@ -198,6 +201,10 @@
             }
         }
         showAuthRequired();
+
+        function showServerVersion(serverVersion) {
+            document.querySelector('#showServerVersion').innerText = serverVersion;
+        }
         
         function validateServer() {
             document.querySelector('#validateResult').innerText = "Querying server, please wait...";
@@ -215,6 +222,10 @@
                         clearAuthRequired();
                     }
                     showAuthRequired(s.authCorrect);
+
+                    if (s.serverVersion) {
+                        showServerVersion(s.serverVersion);
+                    }
                     
                 } catch (e) {
                     console.error(e);
