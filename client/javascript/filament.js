@@ -234,7 +234,12 @@ class FilamentSlot {
             apply.dataset.ids = JSON.stringify(this.ids);
             apply.onclick = async function() {
                 this.parentElement.lastChild.innerText = "Applying, please wait 5-10 seconds..."
-                await setFilamentSlotFromTag(this.dataset.ids);
+                let result = await setFilamentSlotFromTag(this.dataset.ids);
+                if (result.error) {
+                    this.parentElement.lastChild.innerText = "Error: " + result.error;
+                    document.querySelector("#error").innerText = "Error: " + result.error;
+                    return;
+                }
                 showFilamentSlots();
                 
             }
@@ -313,8 +318,13 @@ class FilamentSlot {
         apply.classList.add("btn", "btn-primary", "m-1");
         apply.dataset.ids = JSON.stringify(this.ids);
         apply.onclick = async function() {
-            this.parentElement.lastChild.innerText = "Applying, please wait 5-10 seconds..."
-            await setFilamentSlotFromTag(this.dataset.ids);
+            this.innerText = "Applying, please wait 5-10 seconds..."
+            let result = await setFilamentSlotFromTag(this.dataset.ids);
+            if (result.error) {
+                this.innerText = "Error, see top of screen";
+                document.querySelector("#error").innerText = "Error: " + result.error;
+                return;
+            }
             showFilamentSlots();
             
         }
