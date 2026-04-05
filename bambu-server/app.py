@@ -13,6 +13,8 @@ app = Flask(__name__)
 CORS(app) # allow CORS for all domains on all routes.
 # CORS(app, origins=["http://localhost:3000"]) # Allow CORS from specific domains for better security
 
+SERVER_VERSION = "0.3.4"
+
 app.config['BASIC_AUTH_USERNAME'] = AUTH_USER
 app.config['BASIC_AUTH_PASSWORD'] = AUTH_PASS
 basic_auth = BasicAuth(app)
@@ -46,9 +48,11 @@ def disconnect():
     CONNECTED = False
 
 def makeError(msg):
+    print(f"Error: {msg}")
     return {"error": msg}
 
 def makeWarning(msg):
+    print(f"Warning: {msg}")
     return {"warning": msg}
 
 def setAuth():
@@ -125,7 +129,8 @@ def serverStatus():
     status = {
         "status": "running",
         "authRequired": authRequired,
-        "authCorrect": authCorrect
+        "authCorrect": authCorrect,
+        "serverVersion": SERVER_VERSION
     }
     return jsonify(status)
 
@@ -163,7 +168,7 @@ def setFilament():
     time.sleep(5)
 
     if not good:
-        return jsonify({"error": result})
+        return makeError(result)
     return jsonify({"success": result})
 
 @app.route("/reconnect")

@@ -20,6 +20,7 @@ EXTERNAL_SPOOL_SLOTID = 254
 def connect():
     # Connect to the BambuLab 3D printer
     PRINTER.connect()
+    PRINTER.camera_stop()
 
 def ensureConnected():
     if not PRINTER.mqtt_client_connected():
@@ -176,17 +177,22 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0)
         return False, "Unable to match brand and type with known Bambu codes"
     
     newFilament = bl.AMSFilamentSettings(code, minTemp, maxTemp, fType)
+    hub = PRINTER.ams_hub()
     try:
-        h = PRINTER.ams_hub()
-        x = h[amsID][trayID]
-    except Exception as e:
-        return False, f"Printer does not seem to have an AMS #{amsID} with Tray #{trayID}: {e}"
+        _ = hub[amsID]
+    except KeyError as e:
+        return False, f"Printer does not recognize AMS #{amsID}"
+    
+    try:
+        _ = hub[amsID][trayID]
+    except KeyError as e:
+        return False, f"No filament is loaded in that slot, or printer does not advertise AMS #{amsID} with Slot #{trayID+1})"
     
     result = PRINTER.set_filament_printer(colorHex, newFilament, amsID, trayID)
     if result:
         return True, ""
     else:
-        return False, "Printer rejected request for unknown reasons"
+        return False, "Printer rejected setFilament request for unknown reasons"
 
 # Combine manufacturer and type, normalize spaces, convert to lowercase, and compare
 # If an exact match isn't found, change the manufacturer to "generic" and look again
