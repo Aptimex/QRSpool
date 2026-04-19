@@ -25,13 +25,31 @@
 
                 <div id="nfc-status">NFC Scanner Disabled</div>
                 <button onclick="readNFC()" id="btn-enable-nfc" class="btn btn-primary btn-sm">Enable NFC Scanner</button>
-        
+
                 <p id="error"></p>
-                
+
+                <div class="mb-2">
+                    <button id="clearFilamentBtn" class="btn btn-outline-warning btn-sm me-1" hidden
+                        onclick="clearActiveTag(); document.getElementById('clearFilamentBtn').hidden=true; document.querySelector('#savedFilamentTag').innerHTML='<p class=\'text-muted\'>No filament tag scanned.</p>';">
+                        Clear Filament Tag
+                    </button>
+                    <button id="clearSlotBtn" class="btn btn-outline-warning btn-sm" hidden
+                        onclick="clearActiveSlot(); activeSlotIDsJSON=null; document.getElementById('clearSlotBtn').hidden=true; document.getElementById('selectedSlotSection').hidden=true;">
+                        Clear Slot Tag
+                    </button>
+                </div>
+
+                <div id="selectedSlotSection" hidden>
+                    <h2>Scanned Slot</h2>
+                    <div id="selectedSlotName" class="mb-2 text-muted small"></div>
+                    <button id="autoApplyBtn" class="btn btn-success btn-lg mb-1">Apply to Scanned Slot</button>
+                    <p id="autoApplyStatus" class="mb-0"></p>
+                    <br><hr><br>
+                </div>
+
                 <h1>Scanned Tag</h1>
                 <div id="savedFilamentTag"></div>
 
-                <br>
                 <br>
 
                 <h2>Quick Apply</h2>
@@ -66,10 +84,68 @@
     <script type="text/javascript">
         let tag = parseActiveTag();
         if (tag) {
-            //displayOpenSpoolTag(tag);
             tag.display(document.querySelector("#savedFilamentTag"));
+            document.getElementById("clearFilamentBtn").hidden = false;
+        } else {
+            document.querySelector("#savedFilamentTag").innerHTML = '<p class="text-muted">No filament tag scanned.</p>';
         }
-        
+
+        // Wire up the scanned-slot apply button if a slot tag was scanned
+        let activeSlotIDsJSON = getActiveSlotIDs();
+        if (activeSlotIDsJSON != null) {
+            document.getElementById("clearSlotBtn").hidden = false;
+        }
+        if (activeSlotIDsJSON != null) {
+            document.getElementById("selectedSlotSection").hidden = false;
+
+            const applyBtn = document.getElementById("autoApplyBtn");
+            applyBtn.hidden = !tag;
+            const statusEl = document.getElementById("autoApplyStatus");
+
+            async function doApply() {
+                if (!tag) {
+                    statusEl.innerText = "Error: No filament tag scanned yet.";
+                    return;
+                }
+                const origText = applyBtn.innerText;
+                applyBtn.innerText = "Applying, please wait 5-10 seconds...";
+                applyBtn.disabled = true;
+                let result = await setFilamentSlotFromTag(activeSlotIDsJSON);
+                applyBtn.disabled = false;
+                applyBtn.innerText = origText;
+                if (result.error) {
+                    statusEl.innerText = "Error: " + result.error;
+                    document.querySelector("#error").innerText = "Error: " + result.error;
+                    return;
+                }
+                statusEl.innerText = "Applied successfully!";
+                postApplyCleanup();
+                showFilamentSlots();
+            }
+
+            applyBtn.onclick = doApply;
+
+            if (!getRequireApplyConfirmation() && tag) {
+                doApply();
+            }
+        }
+
+        function postApplyCleanup() {
+            if (getClearFilamentAfterApply()) {
+                clearActiveTag();
+                tag = null;
+                document.getElementById("clearFilamentBtn").hidden = true;
+                document.getElementById("autoApplyBtn").hidden = true;
+                document.querySelector("#savedFilamentTag").innerHTML = '<p class="text-muted">No filament tag scanned.</p>';
+            }
+            if (getClearSlotAfterApply()) {
+                clearActiveSlot();
+                activeSlotIDsJSON = null;
+                document.getElementById("selectedSlotSection").hidden = true;
+                document.getElementById("clearSlotBtn").hidden = true;
+            }
+        }
+
         async function showFilamentSlots() {
             //Clear any existing slot data
             document.querySelector("#filamentSlots").innerHTML = "";
@@ -80,25 +156,37 @@
             errorParent.classList.remove("alert-warning", "collapse");
             errorParent.classList.add("collapse.show", "alert-info");
             errorBox.innerText = "Querying server for slot data, please wait...";
-            
+
             let slotData = await getSlots();
-            //console.log(slotData);
 
             try {
                 //Display slot data
+                let scannedSlotResolved = false;
                 slotData.slots.forEach((slot, i) => {
                     let slotObj = new FilamentSlot(
-                        slot.ids, 
+                        slot.ids,
                         slot.displayID,
                         slotData.displayKeys,
                         slotData.colorHexKeys,
                         slot //all data for the slot
                     );
 
+                    // If this slot matches the scanned slot tag, show its name
+                    if (activeSlotIDsJSON != null &&
+                        JSON.stringify(slot.ids) === JSON.stringify(JSON.parse(activeSlotIDsJSON))) {
+                        document.getElementById("selectedSlotName").innerText = slotObj.displayID;
+                        scannedSlotResolved = true;
+                    }
+
                     errorParent.classList.add("collapse");
                     slotObj.displayQuick(document.querySelector("#filamentSlotsQuick"));
-                    slotObj.display(document.querySelector("#filamentSlots")); 
+                    slotObj.display(document.querySelector("#filamentSlots"));
                 });
+
+                if (activeSlotIDsJSON != null && !scannedSlotResolved) {
+                    document.getElementById("selectedSlotName").innerText = "Could not resolve slot name from printer data";
+                    document.getElementById("selectedSlotName").style.color = "red";
+                }
 
             } catch (e) {
                 try {

@@ -22,7 +22,7 @@ async function setFilamentSlotFromTag(IDjson, tag=null) {
     if (tag == null) {
         tag = parseActiveTag();
         if (tag == null) {
-            return makeError("Active tag empty or invalid")
+            return makeError("Empty or invalid active tag")
         }
     }
     IDs = JSON.parse(IDjson)

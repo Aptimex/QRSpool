@@ -241,7 +241,7 @@ class FilamentSlot {
                     return;
                 }
                 showFilamentSlots();
-                
+                if (typeof postApplyCleanup === 'function') postApplyCleanup();
             }
             th.appendChild(document.createElement("br"));
             th.appendChild(apply);
@@ -262,8 +262,8 @@ class FilamentSlot {
             let td = tr.insertCell();
             
             th.innerText = k;
-            td.innerText = v;
-            
+            td.innerText = (v !== null && typeof v === 'object') ? JSON.stringify(v) : v;
+
             //Render color box if appropriate
             if (this.colorHexKeys.includes(k)) {
                 let box = document.createElement("div");
@@ -304,7 +304,20 @@ class FilamentSlot {
             
             tr.classList.add("collapse", `${moreID}`);
             th.innerText = k;
-            td.innerText = v;
+            td.innerText = (v !== null && typeof v === 'object') ? JSON.stringify(v) : v;
+
+            if (k === 'ids') {
+                td.title = "Click to copy";
+                td.style.cursor = "pointer";
+                td.style.color = "blue";
+                td.onclick = function() {
+                    navigator.clipboard.writeText(this.innerText).then(() => {
+                        const orig = this.innerText;
+                        this.innerText = "Copied!";
+                        setTimeout(() => { this.innerText = orig; }, 1200);
+                    });
+                };
+            }
         };
         parentEl.appendChild(tbl);
     }
@@ -326,10 +339,38 @@ class FilamentSlot {
                 return;
             }
             showFilamentSlots();
-            
+            if (typeof postApplyCleanup === 'function') postApplyCleanup();
         }
 
         parentEl.appendChild(apply);
+    }
+}
+
+// Slot QR tag format: SLOT|<ids_json>
+class SlotTag {
+    static PROTOCOL = "SLOT";
+    static DELIM = "|";
+
+    constructor(ids) {
+        this.ids = ids;
+    }
+
+    static isValidFormat(data) {
+        return typeof data === 'string' && data.startsWith(SlotTag.PROTOCOL + SlotTag.DELIM);
+    }
+
+    static tryParse(data) {
+        if (!SlotTag.isValidFormat(data)) return null;
+        try {
+            let idsJSON = data.slice((SlotTag.PROTOCOL + SlotTag.DELIM).length);
+            let ids = JSON.parse(idsJSON);
+            return new SlotTag(ids);
+        } catch(e) {}
+        return null;
+    }
+
+    toQRString() {
+        return SlotTag.PROTOCOL + SlotTag.DELIM + JSON.stringify(this.ids);
     }
 }
 
