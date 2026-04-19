@@ -117,12 +117,57 @@
                     </tr>
                 </table>
 
+                <hr>
+                <h2>Scanner Settings</h2>
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" value="" id="torchStartCheckbox" onclick="setTorchStart(this.checked)">
                     <label class="form-check-label" for="torchStartCheckbox">
                         Turn on phone torch (LED) when camera starts
                     </label>
                 </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="scanSoundCheckbox" onclick="setScanSound(this.checked)">
+                    <label class="form-check-label" for="scanSoundCheckbox">
+                        Play a sound when a tag is scanned
+                    </label>
+                </div>
+                <div class="mt-2">
+                    <label for="scanDelayInput" class="form-label mb-0">Scan cooldown (ms)</label>
+                    <div class="form-text mt-0 mb-1">Minimum delay after a succesful scan before another tag will be processed, to avoid repeated triggers.</div>
+                    <input type="number" class="form-control form-control-sm w-auto" id="scanDelayInput" min="0" step="100"
+                        onchange="setScanDelay(this.value)">
+                </div>
+
+                <hr>
+                <h2>Pair Scanning</h2>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="alwaysJumpToApplyCheckbox" onclick="setAlwaysJumpToApply(this.checked)">
+                    <label class="form-check-label" for="alwaysJumpToApplyCheckbox">
+                        Go to Apply page immediately after scanning a filament tag (skip slot tag scanning)
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="requireConfirmationCheckbox" onclick="setRequireApplyConfirmation(this.checked)">
+                    <label class="form-check-label" for="requireConfirmationCheckbox">
+                        Require confirmation instead of auto-applying scanned tag pairs
+                    </label>
+                </div>
+
+                <br>
+                <p class="mb-1">After applying a scanned Filament + Slot pair, clear:</p>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="clearFilamentCheckbox" onclick="onClearFilamentChange(this)">
+                    <label class="form-check-label" for="clearFilamentCheckbox">
+                        Filament tag
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="clearSlotCheckbox" onclick="onClearSlotChange(this)">
+                    <label class="form-check-label" for="clearSlotCheckbox">
+                        Slot tag
+                    </label>
+                </div>
+                <p class="text-muted small mb-1">(at least one must be selected)</p>
 
             </div>
         </main>
@@ -175,8 +220,31 @@
             } else {
                 document.querySelector('#torchStartCheckbox').setAttribute("checked", "");
             }
+
+            document.querySelector('#clearFilamentCheckbox').checked = getClearFilamentAfterApply();
+            document.querySelector('#clearSlotCheckbox').checked = getClearSlotAfterApply();
+            document.querySelector('#scanSoundCheckbox').checked = getScanSound();
+            document.querySelector('#scanDelayInput').value = getScanDelay();
+            document.querySelector('#alwaysJumpToApplyCheckbox').checked = getAlwaysJumpToApply();
+            document.querySelector('#requireConfirmationCheckbox').checked = getRequireApplyConfirmation();
         }
         showLocalSettings();
+
+        function onClearFilamentChange(checkbox) {
+            if (!checkbox.checked && !document.getElementById('clearSlotCheckbox').checked) {
+                checkbox.checked = true;
+                return;
+            }
+            setClearFilamentAfterApply(checkbox.checked);
+        }
+
+        function onClearSlotChange(checkbox) {
+            if (!checkbox.checked && !document.getElementById('clearFilamentCheckbox').checked) {
+                checkbox.checked = true;
+                return;
+            }
+            setClearSlotAfterApply(checkbox.checked);
+        }
         
         function showAuthRequired(isCredGood) {
             document.querySelector('#showAuthRequired').innerText = (

@@ -22,15 +22,20 @@
 })();
 */
 
+// Returns {type: 'filament'|'slot', tag: <object>} or null
 function parseNFCData(data) {
-    //console.log("Parsing tag data: " + data);
     var fosTag = FilamentOpenSpool.newEmpty();
-    if ( !(fosTag.parseDataString(data)) ) {
-        console.log("Error parsing NFC tag data");
-        return null;
+    if (fosTag.parseDataString(data)) {
+        return {type: 'filament', tag: fosTag};
     }
 
-    return fosTag;
+    var slotTag = SlotTag.tryParse(data);
+    if (slotTag != null) {
+        return {type: 'slot', tag: slotTag};
+    }
+
+    console.log("Error parsing NFC tag data");
+    return null;
 }
 
 function readNFC() {
@@ -56,23 +61,36 @@ function readNFC() {
             for (const record of message.records) {
                 switch (record.recordType) {
                 case "text":
-                    // Read text record with record data, lang, and encoding.
                     console.log("Parsing text record");
                     const textDecoder = new TextDecoder(record.encoding);
                     const data = textDecoder.decode(record.data);
-                    var tag = parseNFCData(data);
-                    if (tag == null) {
-                        console.log("Error parsing tag data");
+                    var result = parseNFCData(data);
+                    if (result == null) {
+                        console.log("Error parsing NFC tag data");
                         return;
                     }
 
-                    console.log("Activating tag");
-                    activateTag(tag);
-
-                    // Slight delay to prevent double reads
-                    setTimeout(() => {
-                        window.location.href = "apply.html";
-                    }, 300);
+                    if (result.type === 'filament') {
+                        console.log("Activating filament tag");
+                        activateTag(result.tag);
+                        if (typeof scanState !== 'undefined') { scanState.filamentScanned = true; }
+                        navigator.vibrate([80, 50, 80]);
+                        playScanSound(true);
+                        setTimeout(() => { window.location.href = "apply.html"; }, 300);
+                    } else if (result.type === 'slot') {
+                        console.log("Activating slot tag");
+                        setActiveSlotIDs(JSON.stringify(result.tag.ids));
+                        if (typeof scanState !== 'undefined') { scanState.slotScanned = true; }
+                        if (getActiveTagData() != null) {
+                            navigator.vibrate([80, 50, 80]);
+                            playScanSound(true);
+                            setTimeout(() => { window.location.href = "apply.html"; }, 300);
+                        } else {
+                            navigator.vibrate(100);
+                            playScanSound(false);
+                            if (typeof updateScanStatus === 'function') updateScanStatus();
+                        }
+                    }
                     break;
                 default:
                     console.log("Record type not supported (must be text): " + record.recordType);
