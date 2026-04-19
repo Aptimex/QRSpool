@@ -77,7 +77,7 @@ Fill out the URL and username+password for your backend server, save it, and val
 > [!IMPORTANT]
 > If the backend server uses HTTPS with a self-signed certificate you may need to navigate to it each time your broswer re-starts to accept the security risk; otherwise your broswer will silently refuse to communicate with the backend server. 
 
-Go to the Scan tab and grant access to your camera. If prompted, also grant access to NFC scanning, and to access devices on your local network. 
+Go to the Scan tab and grant access to your camera. If prompted, also grant access to NFC scanning if desired, and to access devices on your local network (may be needed for communication with your locally-hosted backend server).
 
 The frontend supports scaning QR codes that represent Filaments and Slots (data formats described in the next section). Scanning both types of tags (in either order) will automatically apply the scanned filament to the scanned slot without needing to manually select it on the Apply page. If you'd prefer to confirm before applying, there's a setting for that (and other related features) on the Settings page.
 
