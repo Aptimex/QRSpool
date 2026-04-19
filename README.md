@@ -10,7 +10,7 @@ Change your printer's filament by scanning a QR code with your phone. [Quick dem
 
 **This project is in Beta. It's functional enough that I use it regularly, but please report any issues you encounter.**
 
-This project consists of two nearly-decoupled components: 
+This project consists of two mostly-decoupled components: 
 - A static website ("frontend") that uses client-side Javascript to access your webcam/camera, scan and parse QR codes to extract filament information, and provide a visual interface for applying scanned filament data to a slot on your printer. GitHub Pages hosted instance available at https://qrspool.com
 - A local API server ("backend") that acts as a communication bridge between your printer and browser, translating between standard REST API requests and whatever protocol your printer uses. 
 
@@ -33,7 +33,7 @@ Requirements:
     - A modern web browser (tested wtih Firefox and Chrome)
 
 > [!NOTE]
-> Currently there is only a backend server for interacting with Bambu printers, and only in LAN mode. Cloud-connected printers could theoretically be supported, but with the [upcoming breaking "security" changes they have planned](https://blog.bambulab.com/firmware-update-introducing-new-authorization-control-system-2/) I decided not to spend time writing code to support that. 
+> Currently there is only a backend server for interacting with Bambu printers, and only in LAN mode (requires LAN+Developer mode on newer printers/firmware). Cloud-connected printers could theoretically be supported, but the library this uses communicate with Bambu printers [doesn't support that (yet?)](https://github.com/BambuTools/bambulabs_api/issues/53). 
 
 ### Backend Server Setup
 The backend server code is in the `bambu-server` folder. Configuration files are in the `configs` subfolder. 
@@ -67,19 +67,21 @@ flask run --host=0.0.0.0 --cert=cert.pem --key=key.pem
 ```
 
 ### Frontend Usage
-Navigate to https://qrspool.com/settings.html on your smartphone using Chrome or Firefox. 
+Navigate to https://qrspool.com/settings.html on your smartphone using Chrome. 
 
-Fill out the URL for your backend server, save it, and validate it. You only need to do this once, unless your settings/network change.
+> [!TIP]
+> Firefox and Safari browsers will also work but have limited extra feature support; for example, Firefox doesn't support turning on the phone torch (LED) and Safari doesn't support vibrate on scan, and neither support NFC scanning. Other limitations may exist as well. 
+
+Fill out the URL and username+password for your backend server, save it, and validate it. You only need to do this once, unless your settings/network change.
 
 > [!IMPORTANT]
 > If the backend server uses HTTPS with a self-signed certificate you may need to navigate to it each time your broswer re-starts to accept the security risk; otherwise your broswer will silently refuse to communicate with the backend server. 
 
-Go to the Scan tab and grant access to your camera. 
+Go to the Scan tab and grant access to your camera. If prompted, also grant access to NFC scanning, and to access devices on your local network. 
 
-> [!TIP]
-> In my own testing, toggling the phone's camera LED (torch) only worked in Chrome, not Firefox. 
+The frontend supports scaning QR codes that represent Filaments and Slots (data formats described in the next section). Scanning both types of tags (in either order) will automatically apply the scanned filament to the scanned slot without needing to manually select it on the Apply page. If you'd prefer to confirm before applying, there's a setting for that (and other related features) on the Settings page.
 
-Scan a properly-formatted QR code (described in the next section) and select a printer filament slot to apply it to. 
+Scanning a Slot tag is optional; you can also just scan a filament tag and then use the Apply page to manually select a slot to apply it to. 
 
 ### Optional: Frontend Local Hosting
 Use any webserver of your choice to host the `client` folder. For example, `python3 -m http.server` provides a quick and easy development server for testing. There is also a python script in that folder for running a development HTTPS webserver. 
@@ -87,7 +89,8 @@ Use any webserver of your choice to host the `client` folder. For example, `pyth
 If you want fully-offline local hosting, you'll need to download the `Bootstrap` (CSS and Javascript) and `jsQR` files referenced in each HTML file and modify those references to point to the downloaded files. 
 
 ## QR Code Data Format
-This project supports QR codes with the following data format:
+### Filament Tags
+This project supports filament QR codes with the following data format:
 ```
 OS1.0|TYPE|COLOR_HEX|BRAND|MIN_TEMP|MAX_TEMP
 ```
@@ -95,6 +98,22 @@ OS1.0|TYPE|COLOR_HEX|BRAND|MIN_TEMP|MAX_TEMP
 `OS1.0` is a static string that helps the scanner identify valid QR codes matching this format so it doesn't waste time trying to process unrelated codes. 
 
 The remaining fields, separated by the pipe (`|`) character, should be replaced with data related to the filament you want it to represent. They are approximately in order of importance/necessity for configuring a filament slot. The scanner will parse as many fields as are provided, allowing you to skip values (leave them empty, or ommit them from the end) that you don't care about or that your printer doesn't support setting. 
+
+### Slot Tags
+Printer (AMS) slot QR codes use the following format:
+```
+SLOT|IDS
+```
+
+`SLOT` is a static string, like `OS1.0` above. `IDS` is a text string (typically JSON) that identifies the target printer slot. For Bambu printers with an AMS, this looks like:
+```
+SLOT|{"amsID":0,"slotID":0}
+```
+
+The `ids` values for your slots are shown in the "↓ Show/Hide All Slot Info ↓" section of each slot on the Apply page. You can click/tap on it to copy it. 
+
+> [!IMPORTANT]
+> Bambu AMS slot IDs seem to be zero-indexed, and the external spool has its own unique numbering. For best results just copy the `ids` value shown in the slot info rather than trying to guess the internal values for a specific slot. They could also change at any time with firmware updates or adding/removing AMS units. 
 
 ### Printing QR Codes
 I recommend [QR2STL](https://printer.tools/qrcode2stl) for generating printable QR codes (I have a forked copy [here](https://github.com/Aptimex/qrcode2stl) that you can easily self-host, with the delay-for-showing-ads functionality removed). It provides a lot of customization options (notably including different error correction levels) and a quick 3D preview of the STL.
@@ -134,12 +153,18 @@ You can pass filament data to the scan page (the website root) using URL paramet
 - `?qrstring=X`, where `X` is the same data string that you would write to a QR code. 
 - `?osjson=X`, where `X` is the JSON string that you would write to an OpenSpook NFC tag (with no line breaks). 
 - The 6 OpenSpool filament data keys as individual parameters. For example, `?type=A&color_hex=B&brand=C&min_temp=D&max_temp=E`. The presence of the `type` key is required to trigger processing this format. 
+- `?slotstring=X`, where `X` is the same data string that you would write to a slot QR code (e.g. `SLOT|{"amsID":0,"slotID":1}`). This stores the slot as the active slot tag, equivalent to scanning a slot QR code with the camera.
 
 This allows you to create NFC tags with URL targets, which most modern smartphones will process natively without the need to have a specific app open. For example, you could create a NFC tag containing a link like this: 
 ```
 https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230
 ```
 When you tap that tag with your phone it should immediately open that link in a browser (probably asking you for confirmation first), parse the tag data in the URL, and take you to the Apply screen with the new tag data ready to apply. 
+
+You can also combine a filament parameter with a slot parameter in the same URL to pre-load both at once:
+```
+https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230&slotstring=SLOT|{"amsID":0,"slotID":1}
+```
 
 > [!TIP]
 > You can set multiple NDEF records in a NFC tag. Most smartphones will natively only try to process the first record, but most dedicated readers (including qrspool.com) will try to process all records. You can set the first record to be a URL link and the second record to be a text record (with OpenSpool JSON or a QR data string) for maximum compatibility. 

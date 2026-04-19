@@ -1,3 +1,7 @@
+/*
+Getters and setters for localStorage values, with some added logic for default values and interdependent settings.
+*/
+
 // Backend Server
 function setServer(server) {
     localStorage.setItem("backendServer", server);
@@ -73,6 +77,76 @@ function getAuthCredHeader() {
 function clearAuthCreds() {
     localStorage.removeItem("basicAuthUser");
     localStorage.removeItem("basicAuthPass");
+}
+
+// Active Slot (IDs from a scanned slot QR tag)
+function setActiveSlotIDs(idsText) {
+    localStorage.setItem("activeSlot", idsText);
+    console.log("Active slot set: " + idsText);
+}
+
+function getActiveSlotIDs() {
+    return localStorage.getItem("activeSlot");
+}
+
+function clearActiveSlot() {
+    localStorage.removeItem("activeSlot");
+}
+
+// Post-apply clear settings
+function setClearFilamentAfterApply(val) {
+    localStorage.setItem("clearFilamentAfterApply", val ? "true" : "false");
+}
+
+function getClearFilamentAfterApply() {
+    return localStorage.getItem("clearFilamentAfterApply") === "true";
+}
+
+function setClearSlotAfterApply(val) {
+    localStorage.setItem("clearSlotAfterApply", val ? "true" : "false");
+}
+
+function getClearSlotAfterApply() {
+    let v = localStorage.getItem("clearSlotAfterApply");
+    if (v === null) return true; // default true so at least one tag is always cleared
+    return v === "true";
+}
+
+// Play a sound on successful tag scan (intended for browsers without vibration support, e.g. iOS Safari)
+function setScanSound(val) {
+    localStorage.setItem("scanSound", val ? "true" : "false");
+}
+
+function getScanSound() {
+    return localStorage.getItem("scanSound") === "true";
+}
+
+// Skip waiting for a slot tag and jump straight to Apply after scanning a filament tag
+function setAlwaysJumpToApply(val) {
+    localStorage.setItem("alwaysJumpToApply", val ? "true" : "false");
+}
+
+function getAlwaysJumpToApply() {
+    return localStorage.getItem("alwaysJumpToApply") === "true";
+}
+
+// Require manual confirmation before auto-applying a scanned filament+slot pair
+function setRequireApplyConfirmation(val) {
+    localStorage.setItem("requireApplyConfirmation", val ? "true" : "false");
+}
+
+function getRequireApplyConfirmation() {
+    return localStorage.getItem("requireApplyConfirmation") === "true";
+}
+
+// Minimum delay (ms) between processing successive tag scans
+function setScanDelay(ms) {
+    localStorage.setItem("scanDelay", parseInt(ms));
+}
+
+function getScanDelay() {
+    let v = localStorage.getItem("scanDelay");
+    return v === null ? 1500 : parseInt(v);
 }
 
 //Torch

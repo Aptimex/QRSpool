@@ -34,8 +34,11 @@
 
                 <div id="setupCheck" class="alert alert-warning error-div" hidden="true" role="alert"></div>
 
+                <div id="scanStatus" hidden></div>
+
                 <div>
-                    <p>Scan a filament QR code (tap/click video to toggle phone torch, if supported)</p>
+                    <p>Scan a filament or slot QR code (tap/click video to toggle phone torch, if supported)</p>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="clearActiveTag(); clearActiveSlot(); scanState.filamentScanned=false; scanState.slotScanned=false; updateScanStatus();">Clear Scanned Tags</button>
                 </div>
                 
                 
