@@ -6,13 +6,33 @@
 
 </div>
 
-Change your printer's filament by scanning a QR code with your phone. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8). Also supports OpenSpool NFC tags on Chrome for Android, and NFC tags with URI (web URL) targets on most/all smartphones. 
+Change your printer's multi-spool filament settings by scanning a QR code or NFC tag with your smartphone. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8). 
 
-**This project is in Beta. It's functional enough that I use it regularly, but please report any issues you encounter.**
+**This project is in Beta. It's fully functional, but please report any issues or bugs you encounter since I can't test every compatible printer or filament setting.**
+
+## User Experience
+
+Here's a quick walkthrough of things you can use this project to do once you have everything setup:
+
+You open a website on your phone. The website accesses your phone camera and scans the video feed in real-time for QR codes. Processessing the video feed is handled 100% locally in your broswer, no data is sent to the website server. 
+
+<img align="center" src="media/scanning.png">
+
+If you scan a QR code that represents a filament, the webpage changes and shows you information about the scanned filament tag and a list of available filament slots on your printer. You can then apply that filament to any slot with the press of a button. 
+
+<img align="center" src="media/apply.png">
+
+Or, instead of manually selecting a slot, you can scan another QR code that represents a specific printer slot, and the filament will be applied to it immediately. 
+
+Instead of using printed QR codes, you can also write the filament or slot data to a cheap NFC NTAG tag using a special URL. Then you can tap the tag with your NFC-enabled phone (from any screen, no need to have the broswer open) to open the website and have the data instantly loaded as if you had scanned a QR code. 
+
+If you are using Chrome on an Android phone, you can also use that browser to scan NTAG NFC tags that have the same text data as a QR code, without needing to rely on a special URL format. 
+
+## Getting Started
 
 This project consists of two mostly-decoupled components: 
-- A static website ("frontend") that uses client-side Javascript to access your webcam/camera, scan and parse QR codes to extract filament information, and provide a visual interface for applying scanned filament data to a slot on your printer. GitHub Pages hosted instance available at https://qrspool.com
-- A local API server ("backend") that acts as a communication bridge between your printer and browser, translating between standard REST API requests and whatever protocol your printer uses. 
+- A static website ("frontend") that uses client-side Javascript to access your webcam/camera, scan and parse QR codes and NFC tags to extract filament information, and provide a visual interface for applying scanned filament data to a slot on your multi-spool printer. An instance of this frontend, built directly from this repo and hosted on GitHub Pages, is available for free here: https://qrspool.com
+- A local API server ("backend") that acts as a communication bridge between your printer and browser, translating between standard REST API requests and whatever protocol your printer uses. You will need to run your own copy of the backend server on the same local network your printer is connected to. 
 
 <div align="center">
 
@@ -20,46 +40,39 @@ This project consists of two mostly-decoupled components:
 
 </div>
 
-The frontend is simple enough to be hosted on GitHub Pages (which does not support any server-side operations), providing additional assurance the hosting server is not accessing your camera data. It can also be hosted locally (including offline) for even greater assurance. 
+Currently I have implemented a Python (Flask) backend server that will communicate with Bambu Labs printers in LAN-only mode (LAN+Developer mode on newer printers/firmware) using the [bambulabs-api library](https://pypi.org/project/bambulabs-api/). Other servers could be written to support other printer brands without needing to change the frontend code. If you write such a server let me know so I can link to it. 
 
-The backend server must be run on a computer on the same local network as the target printer, or otherwise able to route to it. It provides specific REST API endpoints that accept and return well-defined but extensible data. Currently I have implemented a Python (Flask) server that will communicate with Bambu Labs printer in LAN-only mode using the [bambulabs-api package](https://pypi.org/project/bambulabs-api/), but other servers could be written to support other printer brands, without needing to change the frontend code. 
-
-## Getting Started
-Requirements:
-- A Bambu Labs printer in LAN-only mode; other brands may be supported in the future
-- A server (always-on computer) with a static IP on the same LAN as the printer
-    - Docker, or Python 3 (tested with >=3.10.12)
+### Requirements
+- A Bambu Labs printer in LAN-only mode (LAN+Developer mode on newer printers/firmware); other brands may be supported in the future
+- A server (always-on computer) with a static IP or reliable DNS name on the same LAN as the printer
+    - Needs to be able to run either Docker or Python 3 (tested with >=3.10.12)
 - A smartphone with camera, or a computer with a webcam (a USB webcam with long cable is best)
-    - A modern web browser (tested wtih Firefox and Chrome)
-
-> [!NOTE]
-> Currently there is only a backend server for interacting with Bambu printers, and only in LAN mode (requires LAN+Developer mode on newer printers/firmware). Cloud-connected printers could theoretically be supported, but the library this uses communicate with Bambu printers [doesn't support that (yet?)](https://github.com/BambuTools/bambulabs_api/issues/53). 
+    - A modern web browser; Chrome is recommended, but Firefox and Safari also support the core features
 
 ### Backend Server Setup
-The backend server code is in the `bambu-server` folder. Configuration files are in the `configs` subfolder. 
+The backend server code is in the `bambu-server` folder. Configuration files are in the `configs` subfolder there. 
 
 First, copy or rename the `bambu_config.example.py` file to `bambu_config.py` and modify it with your printer settings and desired backend server access credentials. You can leave the credentials empty, but the server will still expect you to supply an empty username and password to access it (authentication can't be disabled). 
 
-There are two recommended ways to run this backend server: 
-- (Default, easiest) HTTPS with a self-signed cert, exposed directly to your LAN. Optionally obtain a real certificate and use that instead. 
-- (Recommended, more complex) HTTP, using a reverse proxy to add proper SSL/TLS and expose that to your LAN.
-
-Docker is the recommended way to run the server. The provided `Dockerfile` supports both options, just uncomment the appropriate `CMD` line. Then from that folder run:
+Docker is the recommended way to run the server. The provided `Dockerfile` supports running the server either over HTTP or HTTPS, just uncomment the appropriate `CMD` line. Then from that folder run:
 ```bash
 sudo docker compose up --build -d
 ```
 
-This will expose the API server on port 5123, but that can be customized by editing the provided docker files. The files in the `configs` subdirectory will be mounted into the container so they will persist across container restarts. 
+HTTP vs HTTPS options: 
+- (Default, easiest) HTTPS with a self-signed cert, exposed directly to your LAN. Optionally obtain a real certificate and use that instead. 
+- (Recommended, more complex) HTTP, using a reverse proxy to add proper SSL/TLS, and expose that to your LAN. Reverse proxy setup instructions are outside the scope of this project, but [Caddy](https://caddyserver.com/) is a propular free solution that I personally like. 
+- (Not recommended) HTTP only.
 
 > [!WARNING]
-> If you expose a HTTP-only server to your network then any other devices on your network will be able to sniff your server credentials. 
+> If you expose a HTTP-only server to your network then any other devices on your network will be able to passively sniff your server credentials when you use the frontend. 
 
 > [!WARNING]
-> The frontend and backend servers MUST be accessed using the same protocol, HTTP or HTTPS. If you mix protocols your broswer will proabably silently refuse to communicate with the backend server when using the frontend.
+> The frontend and backend servers MUST be accessed using the same protocol, HTTP or HTTPS. If you mix protocols your broswer will proabably silently refuse to communicate with the backend server. 
 
-Reverse proxy setup instructions are outside the scope of this project. 
+Docker will expose the API server on port 5123, but that can be customized by editing the provided docker files. The files in the `configs` subdirectory will be mounted into the container so they will persist across container restarts. 
 
-Want to run it natively instead? Setup your config files and then run something like this:
+Want to run it natively instead of through Docker? Setup your config files and then run something like this:
 ```bash
 python3 -m pip install -r requirements.txt
 openssl req -new -x509 -keyout key.pem -out server.pem -days 3650 -nodes
@@ -75,9 +88,9 @@ Navigate to https://qrspool.com/settings.html on your smartphone using Chrome.
 Fill out the URL and username+password for your backend server, save it, and validate it. You only need to do this once, unless your settings/network change.
 
 > [!IMPORTANT]
-> If the backend server uses HTTPS with a self-signed certificate you may need to navigate to it each time your broswer re-starts to accept the security risk; otherwise your broswer will silently refuse to communicate with the backend server. 
+> If the backend server uses HTTPS with a self-signed certificate you may need to navigate to it each time your broswer re-starts to accept the security risk; otherwise your broswer will silently refuse to communicate with the backend server. For best results use a real certificate for a domain you control, such as a free [DuckDNS](https://www.duckdns.org/) subdomain. 
 
-Go to the Scan tab and grant access to your camera. If prompted, also grant access to NFC scanning if desired, and to access devices on your local network (may be needed for communication with your locally-hosted backend server).
+Go to the Scan tab and grant access to your camera. If prompted, also grant access to NFC scanning (if desired), and to access devices on your local network (may be needed for communication with your locally-hosted backend server).
 
 The frontend supports scaning QR codes that represent Filaments and Slots (data formats described in the next section). Scanning both types of tags (in either order) will automatically apply the scanned filament to the scanned slot without needing to manually select it on the Apply page. If you'd prefer to confirm before applying, there's a setting for that (and other related features) on the Settings page.
 
