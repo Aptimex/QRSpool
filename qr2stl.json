@@ -1,0 +1,49 @@
+{
+  "mode": "QR",
+  "options": {
+    "activeTabIndex": 0,
+    "errorCorrectionLevel": "L",
+    "useEscapeSequences": false,
+    "text": "OS1.0|PLA Matte|1E8440|Bambu|190|240",
+    "base": {
+      "shape": "roundedRectangle",
+      "width": 30,
+      "height": 30,
+      "depth": 1,
+      "cornerRadius": 2,
+      "hasBorder": false,
+      "borderWidth": 2,
+      "borderDepth": 1,
+      "hasText": true,
+      "textPlacement": "bottom",
+      "textMargin": 1.2,
+      "textSize": 3,
+      "textMessage": "Bambu PLA\nMatte Green",
+      "textDepth": 0.4,
+      "textAlign": "center",
+      "hasKeychainAttachment": true,
+      "keychainPlacement": "top",
+      "keychainHoleDiameter": 5,
+      "keychainMaterialThickness": 1,
+      "keychainOffset": 3,
+      "mirrorHoles": false,
+      "hasNfcIndentation": false,
+      "nfcIndentationShape": "square",
+      "nfcIndentationSize": 30,
+      "nfcIndentationDepth": 1,
+      "nfcIndentationHidden": false
+    },
+    "code": {
+      "depth": 0.4,
+      "margin": 1.2,
+      "blockSizeMultiplier": 100,
+      "iconName": "none",
+      "iconSizeRatio": 20,
+      "iconShapes": null,
+      "cityMode": false,
+      "depthMax": 5,
+      "invert": false,
+      "compatibilityMode": false
+    }
+  }
+}
