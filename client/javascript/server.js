@@ -1,4 +1,4 @@
-const CLIENT_VERSION = "0.0.0";
+const CLIENT_VERSION = "0.5.0";
 
 // Minimum server version required by this client. Bump manually on breaking API changes.
 const MIN_SERVER_VERSION = "0.0.0";
