@@ -161,7 +161,7 @@ The Chrome browser on Android has support for reading NFC tags if your phone has
 
 For iOS users, see the Using URL Parameters section below for an option that should work on iPhones. 
 
-Currently this project doesn't support writing NFC tags through the website. I recommend using the [OpenTag3D site's Make tab](https://opentag3d.info/make) to easily write tags for Android users. For a more generic method, [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter) apps can be used to write custom data to tags. Similar apps may be available for iOS. 
+Currently this project doesn't support writing NFC tags through the website. I recommend using the [OpenTag3D site's Make tab](https://opentag3d.info/make) to easily write tags for Android users. For a more generic method, [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter) apps can be used to write custom data to tags. Similar apps may be available for iOS.
 
 ### Using URL Parameters
 You can pass filament data to the scan page (the website root) using URL parameters. It accepts the following formats (and checks for them in this order):
@@ -183,6 +183,14 @@ https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230&slotstring=SLOT|{"am
 
 > [!TIP]
 > You can set multiple NDEF records in a NFC tag. Most smartphones will natively only try to process the first record, but most dedicated readers (including qrspool.com) will try to process all records. You can set the first record to be a URL link and the second record to be a text record (with OpenSpool JSON or a QR data string) for maximum compatibility. 
+
+### OpenTag3D Field Length Limits
+The OpenTag3D spec limits the Material Name (type) field to 5 characters and the Modifier field to 5 characters. Many Bambu filament names exceed these limits. When creating OpenTag3D tags you have several options when a value doesn't fit:
+
+1. For most filament Names and Modifiers, you can just truncate it to 5 characters. However, if the server detects the truncation matches more than 1 possible expansion, it will return an error. 
+2. Use a recognized abbreviation. The server knows common abbreviations for longer terms. For example, `Supp` expands to `Support`, `HiSpd` to `High Speed`, and `Tgh+` to `Tough+`. See `bambu-server/configs/type-abbreviations.json` and `modifier-abbreviations.json` for the full list. You can also add your own to these files on your server, or submit a PR to add more to this repo. 
+3. Put the full Name and/or Modifier string in the optioanl Color Name field and leave their dedicated fields blank. The server will make a best-effort attempt to match the missing fields from the longer Color Name field.
+4. Specify `RAWCODE` for the filament Name and put the appropraite code from the `bambu-server/configs/bambu-ams-codes.json` file in the Type field. 
 
 # Technical Notes
 This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. Most users can stop reading here. 
