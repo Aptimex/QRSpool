@@ -6,7 +6,7 @@
 
 </div>
 
-Change your printer's multi-spool filament settings by scanning a QR code or NFC tag with your smartphone. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8). 
+Change your printer's multi-spool filament settings by scanning custom QR codes or NFC tags with your smartphone. Also supports [OpenSpool](https://openspool.io/) and [OpenTag3D](https://opentag3d.info/) NFC tags in Chrome on Android. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8). 
 
 **This project is in Beta. It's fully functional, but please report any issues or bugs you encounter since I can't test every compatible printer or filament setting.**
 
@@ -157,9 +157,11 @@ From my testing Bambu printers seem to ignore any temperature values you specify
 Currently the server will only return information about AMS slots that have filament loaded into them (plus the external spool). This means if you load the Apply page in the middle of changing out a spool you won't be able to apply a scanned code to that slot until you actually insert the filament into the inlet. 
 
 ## Using NFC Tags
-The Chrome browser on Android has support for reading NFC tags if your phone has NFC hardware (most do). While using a supported broswer the Scan and Apply pages will present a button at the top to enable NFC, which will prompt the browser to ask you for permission to enable that feature. Once enabled you can scan NFC tags formatted with the [OpenSpool data protocol](https://openspool.io/rfid.html#protocol) to get filament data that you can then apply. 
+The Chrome browser on Android has support for reading NFC tags if your phone has NFC hardware (most do). While using a supported broswer the Scan and Apply pages will present a button at the top to enable NFC, which will prompt the browser to ask you for permission to enable that feature. Once enabled you can scan [OpenSpool](https://openspool.io/rfid.html#protocol) or [OpenTag3D](https://opentag3d.info/spec) NFC tags to get filament data that you can then apply, just like scanning QR codes with your phone. Alternatively, you can create NFC tags that contain the same text data as the QR codes. 
 
-Currently this project doesn't support writing NFC tags through the website. I recommend using either [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter) apps for writing tags. 
+For iOS users, see the Using URL Parameters section below for an option that should work on iPhones. 
+
+Currently this project doesn't support writing NFC tags through the website. I recommend using the [OpenTag3D site's Make tab](https://opentag3d.info/make) to easily write tags for Android users. For a more generic method, [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter) apps can be used to write custom data to tags. Similar apps may be available for iOS. 
 
 ### Using URL Parameters
 You can pass filament data to the scan page (the website root) using URL parameters. It accepts the following formats (and checks for them in this order):
@@ -174,7 +176,7 @@ https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230
 ```
 When you tap that tag with your phone it should immediately open that link in a browser (probably asking you for confirmation first), parse the tag data in the URL, and take you to the Apply screen with the new tag data ready to apply. 
 
-You can also combine a filament parameter with a slot parameter in the same URL to pre-load both at once:
+If you want to, you can also combine a filament parameter with a slot parameter in the same URL to pre-load both at once:
 ```
 https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230&slotstring=SLOT|{"amsID":0,"slotID":1}
 ```
@@ -183,7 +185,7 @@ https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230&slotstring=SLOT|{"am
 > You can set multiple NDEF records in a NFC tag. Most smartphones will natively only try to process the first record, but most dedicated readers (including qrspool.com) will try to process all records. You can set the first record to be a URL link and the second record to be a text record (with OpenSpool JSON or a QR data string) for maximum compatibility. 
 
 # Technical Notes
-This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. 
+This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. Most users can stop reading here. 
 
 ## QR Codes
 
@@ -271,6 +273,14 @@ This should accept POST or PUT requests containing JSON data that describes a ne
 ```
 
 The `ids` value will be copied from a response returned by the `/slots` endpoint to identify the target slot. The remaining values mirror the QR code data format. These keys may have empty string values if the associated data is not available (for example, because some fields were omitted from a scanned QR code). 
+
+The server must gracefully ignore any extra or unknown JSON keys it recieves, but may support other optional keys. The following are recommended optional values a server may want to accept to maximize compatability with current filament tag standards and potential future printer protocol improvements:
+```json
+{
+    "colorName": "<value>",
+    "bedTemp": "<value>",
+}
+```
 
 ###  /reconnect
 This should accept a GET request with no parameters, and take necessary actions to reset the connection between the server and printer. This is intended to be used as an easy quick-fix option if things aren't working as expected. 
