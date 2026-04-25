@@ -48,6 +48,19 @@ pre {
     animation: pulse 2s linear infinite;
 }
 
+#savedFilamentTag table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.raw-tag-data {
+    word-break: break-all;
+}
+
+#savedFilamentTag th {
+    width: 12ch;
+}
+
 #error {
     font-weight: bold;
     color: maroon;

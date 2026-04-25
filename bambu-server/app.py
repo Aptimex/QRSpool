@@ -13,7 +13,7 @@ app = Flask(__name__)
 CORS(app) # allow CORS for all domains on all routes.
 # CORS(app, origins=["http://localhost:3000"]) # Allow CORS from specific domains for better security
 
-SERVER_VERSION = "0.3.4"
+SERVER_VERSION = "0.5.0"
 
 app.config['BASIC_AUTH_USERNAME'] = AUTH_USER
 app.config['BASIC_AUTH_PASSWORD'] = AUTH_PASS
@@ -70,7 +70,6 @@ setAuth()
 
 class FilamentData(object):
     def __init__(self, type, brand, colorHex, minTemp = 0, maxTemp = 0):
-        #super(FilamentData, self).__init__()
         self.type = type
         self.brand = brand
         self.colorHex = colorHex
@@ -78,10 +77,7 @@ class FilamentData(object):
         self.maxTemp = maxTemp
 
 class OpenSpoolData(object):
-    #def __init__(self, header, type, brand, colorHex, minTemp = 0, maxTemp = 0):
     def __init__(self, type, brand, colorHex, minTemp = 0, maxTemp = 0):
-        #super(OpenSpoolData, self).__init__()
-        #self.header = header
         self.type = type
         self.brand = brand
         self.colorHex = colorHex
@@ -89,17 +85,16 @@ class OpenSpoolData(object):
         self.maxTemp = maxTemp
 
 class OpenSpoolBambuSlot(OpenSpoolData):
-    #def __init__(self, ids, header, type, brand, colorHex, minTemp = 0, maxTemp = 0):
-    def __init__(self, ids, type, brand, colorHex, minTemp = 0, maxTemp = 0):
-        #super(OpenSpoolData, self).__init__(header, type, brand, colorHex, minTemp, maxTemp)
+    def __init__(self, ids, type, brand, colorHex, minTemp = 0, maxTemp = 0, colorName = "", **_):
         super().__init__(type, brand, colorHex, minTemp, maxTemp)
         self.amsID = ids["amsID"]
         self.slotID = ids["slotID"]
+        self.colorName = colorName
         self.displayID = f"AMS #{self.amsID} | Slot #{self.slotID}"
     
 
 @app.route("/")
-def hello_world():
+def root():
     return redirect("/serverStatus")
 
 @app.route("/serverStatus")
@@ -160,15 +155,16 @@ def setFilament():
     
     connect()
     #print(fData.__dict__)
-    good, result = bambu.setFilament(fData.amsID, fData.slotID, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp)
-    
-    # For some reason the printer won't return changed AMS data unless a new connection is established, so proactively disconnect
-    disconnect()
-    # Takes ~5s for new filament change to take effect, so proactively wait
-    time.sleep(5)
+    good, result = bambu.setFilament(fData.amsID, fData.slotID, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp, fData.colorName)
 
     if not good:
         return makeError(result)
+    
+    # For some reason the printer won't return changed AMS data unless a new connection is established, so proactively disconnect
+    disconnect()
+
+    # Takes ~5s for new filament change to take effect, so proactively wait
+    time.sleep(5)
     return jsonify({"success": result})
 
 @app.route("/reconnect")

@@ -1,0 +1,15 @@
+{
+    "Tough+":       ["Tgh+", "Tuf+", "Toug+"],
+    "High Speed":   ["HiSpd", "Hi Sp"],
+    "For PLA":      ["4PLA", "fPLA"],
+    "For PA/PET":   ["4PAP", "fPAP"],
+    "For PLA/PETG": ["4PETG", "fPETG", "fPLPG"],
+    "Dynamic":      ["Dyn", "Dynmc"],
+    "Sparkle":      ["Sprkl", "Spkl"],
+    "Impact":       ["Imp", "Impct"],
+    "Galaxy":       ["Gal", "Glxy", "Galxy"],
+    "Marble":       ["Mrbl", "Marb"],
+    "for AMS":      ["fAMS", "4AMS"],
+    "for ABS":      ["fABS", "4ABS"],
+    "95A HF":       ["95AHF"]
+}
