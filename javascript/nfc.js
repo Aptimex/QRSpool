@@ -38,88 +38,182 @@ function parseNFCData(data) {
     return null;
 }
 
+// Enables fully disabling NFC during cooldowns between tag reads
+var nfcAbortController = null;
+
 function readNFC() {
     if (!('NDEFReader' in window)) {
-        nfcDisabled("");
+        onnfcDisabled("");
         document.querySelector("#nfc-status").hidden = true;
         document.querySelector("#btn-enable-nfc").hidden = true;
         console.log("NFC not supported by your browser; it currently is only available on Chrome for Android.")
         return null;
     }
 
-    nfcEnabled();
+    startNFCScan();
+}
 
+function startNFCScan() {
+    nfcAbortController = new AbortController();
     const ndef = new NDEFReader();
-    ndef.scan().then(() => {
-        //console.log("NFC Scanner Enabled.");
+    ndef.scan({ signal: nfcAbortController.signal }).then(() => {
+        onNfcEnabled();
         ndef.onreadingerror = () => {
-            console.log("Error readting the NFC tag. Try another one?");
+            console.log("Error reading the NFC tag. Try another one?");
         };
         ndef.onreading = event => {
+            nfcAbortController.abort();
+            nfcAbortController = null;
+            nfcCooldown();
             console.log("NDEF message read.");
             const message = event.message;
+            if (message.records.length === 0) {
+                nfcError("NFC Error: Tag is blank");
+            }
             for (const record of message.records) {
                 switch (record.recordType) {
-                case "text":
+                case "text": {
                     console.log("Parsing text record");
                     const textDecoder = new TextDecoder(record.encoding);
                     const data = textDecoder.decode(record.data);
                     var result = parseNFCData(data);
                     if (result == null) {
                         console.log("Error parsing NFC tag data");
-                        return;
+                        nfcError("NFC Error: Unrecognized tag format");
+                        break;
                     }
 
                     if (result.type === 'filament') {
                         console.log("Activating filament tag");
                         activateTag(result.tag);
                         if (typeof scanState !== 'undefined') { scanState.filamentScanned = true; }
-                        navigator.vibrate([80, 50, 80]);
-                        playScanSound(true);
-                        setTimeout(() => { window.location.href = "apply.html"; }, 300);
+                        const filamentPairComplete = getActiveSlotIDs() != null;
+
+                        if (typeof onNFCTagScanned === 'function') {
+                            navigator.vibrate(filamentPairComplete ? [80, 50, 80] : 100);
+                            if (typeof playScanSound === 'function') playScanSound(filamentPairComplete);
+                            onNFCTagScanned('filament', result.tag);
+
+                        } else if (filamentPairComplete || getAlwaysJumpToApply()) {
+                            navigator.vibrate([80, 50, 80]);
+                            if (typeof playScanSound === 'function') playScanSound(true);
+                            setTimeout(() => { window.location.href = "apply.html"; }, 300);
+
+                        } else {
+                            navigator.vibrate(100);
+                            if (typeof playScanSound === 'function') playScanSound(false);
+                            if (typeof updateScanStatus === 'function') updateScanStatus();
+                        }
+
                     } else if (result.type === 'slot') {
                         console.log("Activating slot tag");
                         setActiveSlotIDs(JSON.stringify(result.tag.ids));
                         if (typeof scanState !== 'undefined') { scanState.slotScanned = true; }
-                        if (getActiveTagData() != null) {
+                        const slotPairComplete = getActiveTagData() != null;
+
+                        if (typeof onNFCTagScanned === 'function') {
+                            navigator.vibrate(slotPairComplete ? [80, 50, 80] : 100);
+                            if (typeof playScanSound === 'function') playScanSound(slotPairComplete);
+                            onNFCTagScanned('slot', result.tag);
+
+                        } else if (slotPairComplete) {
                             navigator.vibrate([80, 50, 80]);
-                            playScanSound(true);
+                            if (typeof playScanSound === 'function') playScanSound(true);
                             setTimeout(() => { window.location.href = "apply.html"; }, 300);
+
                         } else {
                             navigator.vibrate(100);
-                            playScanSound(false);
+                            if (typeof playScanSound === 'function') playScanSound(false);
                             if (typeof updateScanStatus === 'function') updateScanStatus();
                         }
                     }
                     break;
+                }
+
+                case "mime": {
+                    if (record.mediaType !== FilamentOpenTag.mimeType) {
+                        console.log("Unsupported MIME type: " + record.mediaType);
+                        nfcError("NFC Error: Unsupported MIME type");
+                        break;
+                    }
+                    console.log("Parsing OpenTag3D record");
+                    let fotTag = FilamentOpenTag.tryParse(record.data);
+                    if (fotTag == null) {
+                        console.log("Error parsing OpenTag3D tag data");
+                        nfcError("NFC Error: Unrecognized tag format");
+                        break;
+                    }
+                    activateTag(fotTag);
+                    if (typeof scanState !== 'undefined') { scanState.filamentScanned = true; }
+                    const mimePairComplete = getActiveSlotIDs() != null;
+
+                    if (typeof onNFCTagScanned === 'function') {
+                        navigator.vibrate(mimePairComplete ? [80, 50, 80] : 100);
+                        if (typeof playScanSound === 'function') playScanSound(mimePairComplete);
+                        onNFCTagScanned('filament', fotTag);
+
+                    } else if (mimePairComplete || getAlwaysJumpToApply()) {
+                        navigator.vibrate([80, 50, 80]);
+                        if (typeof playScanSound === 'function') playScanSound(true);
+                        setTimeout(() => { window.location.href = "apply.html"; }, 300);
+
+                    } else {
+                        navigator.vibrate(100);
+                        if (typeof playScanSound === 'function') playScanSound(false);
+                        if (typeof updateScanStatus === 'function') updateScanStatus();
+
+                    }
+                    break;
+                }
+
                 default:
-                    console.log("Record type not supported (must be text): " + record.recordType);
+                    console.log("Record type not supported: " + record.recordType);
+                    nfcError("NFC Error: Unsupported record type");
                 }
             }
+            setTimeout(startNFCScan, getScanDelay());
         };
 
     }).catch(error => {
+        if (error.name === 'AbortError') return;
         console.log(`Error! Scan failed to start: ${error}.`);
-        nfcDisabled(error);
+        onnfcDisabled(error);
     });
-
 }
 
-// This doesn't enable NFC, just handles things that should happen when it is
-function nfcEnabled() {
+function nfcError(message) {
     document.querySelector("#btn-enable-nfc").hidden = true;
-    document.querySelector("#nfc-status").innerText = "NFC Scanner Enabled";
-    document.querySelector("#nfc-status").classList.add("pulsing-text");
+    const el = document.querySelector("#nfc-status");
+    el.innerText = message;
+    el.classList.remove("pulsing-text");
+    el.style.color = "red";
 }
 
-function nfcDisabled(error = null) {
-    if (error == null) {
-        document.querySelector("#nfc-status").innerText = "NFC Scanner Disabled";
-    } else {
-        document.querySelector("#nfc-status").innerText = "NFC Scanner error: " + error;
-    }
+
+function nfcCooldown() {
+    const el = document.querySelector("#nfc-status");
+    document.querySelector("#btn-enable-nfc").hidden = true;
+    el.innerText = "NFC Scanner Cooling Down...";
+    el.classList.remove("pulsing-text");
+    el.style.color = "";
+}
+
+// This doesn't enable NFC, just handles things that should happen when it starts
+function onNfcEnabled() {
+    const el = document.querySelector("#nfc-status");
+    document.querySelector("#btn-enable-nfc").hidden = true;
+    el.innerText = "NFC Scanner Enabled";
+    el.classList.add("pulsing-text");
+    el.style.color = "";
+}
+
+// Stuff to do when NFC is being disabled
+function onnfcDisabled(error = null) {
+    const el = document.querySelector("#nfc-status");
+    el.innerText = error == null ? "NFC Scanner Disabled" : "NFC Scanner error: " + error;
+    el.classList.remove("pulsing-text");
+    el.style.color = "";
     document.querySelector("#btn-enable-nfc").hidden = false;
-    document.querySelector("#nfc-status").classList.remove("pulsing-text");
 }
 
 readNFC();

@@ -374,19 +374,198 @@ class SlotTag {
     }
 }
 
+// OpenTag3D spec: https://opentag3d.info/spec
+// Binary NFC tag format, MIME type application/opentag3d
+// Stored in localStorage as base64 with "OT3D:" prefix
+class FilamentOpenTag {
+    static protocol = "OpenTag3D";
+    static mimeType = "application/opentag3d";
+    static rawPrefix = "OT3D:";
+
+    static displayMap = {
+        "rawData": "Raw Tag Data",
+        "displayProtocol": "Tag Protocol",
+        "type": "Type",
+        "colorHex": "Color",
+        "colorName": "Color Name",
+        "brand": "Brand",
+        "minTemp": "Min Print Temp (C)",
+        "maxTemp": "Max Print Temp (C)",
+        "bedTemp": "Bed Temp (C)",
+        "diameter": "Diameter (mm)",
+        "weight": "Weight (g)",
+        "density": "Density (g/cm³)",
+    }
+
+    constructor() {
+        this.rawData = null;
+        this.displayProtocol = FilamentOpenTag.protocol;
+        this.type = "";
+        this.colorHex = "";
+        this.colorName = "";
+        this.brand = "";
+        this.minTemp = "";
+        this.maxTemp = "";
+        this.bedTemp = "";
+        this.diameter = "";
+        this.weight = "";
+        this.density = "";
+    }
+
+    static newEmpty() {
+        return new FilamentOpenTag();
+    }
+
+    static isValidFormat(data) {
+        if (data instanceof DataView || data instanceof Uint8Array || data instanceof ArrayBuffer) return true;
+        return typeof data === 'string' && data.startsWith(FilamentOpenTag.rawPrefix);
+    }
+
+    // Parse from binary DataView (Web NFC API provides record.data as DataView)
+    parseBytes(dataView) {
+        let bytes;
+        if (dataView instanceof DataView) {
+            bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
+        } else if (dataView instanceof Uint8Array) {
+            bytes = dataView;
+        } else if (dataView instanceof ArrayBuffer) {
+            bytes = new Uint8Array(dataView);
+        } else {
+            return false;
+        }
+
+        if (bytes.length < 0x64) return false;
+
+        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        const dec = new TextDecoder('utf-8');
+        const str = (start, len) => dec.decode(bytes.subarray(start, start + len)).replace(/\0/g, '').trim();
+
+        // Tag Version: 2-byte uint16 big-endian, 3 implied decimal places (e.g. 1000 = 1.000)
+        const ver = view.getUint16(0x00, false);
+        this.displayProtocol = `${FilamentOpenTag.protocol} ${(ver / 1000).toFixed(3)}`;
+
+        // Type: Base Material Name (5 bytes) + optional Material Modifiers (5 bytes)
+        const base = str(0x02, 5);
+        const mod  = str(0x07, 5);
+        this.type = mod ? `${base} ${mod}` : base;
+
+        // Manufacturer (16 bytes)
+        this.brand = str(0x1B, 16);
+
+        // Color Name (32 bytes)
+        this.colorName = str(0x2B, 32);
+
+        // Color 1 RGBA (4 bytes) — use RGB as 6-char hex
+        this.colorHex = Array.from(bytes.subarray(0x4B, 0x4E))
+            .map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // Target Diameter: uint16 micrometers
+        const diamRaw = view.getUint16(0x5C, false);
+        this.diameter = diamRaw ? (diamRaw / 1000).toFixed(2) : "";
+
+        // Target Weight: uint16 grams
+        const wtRaw = view.getUint16(0x5E, false);
+        this.weight = wtRaw || "";
+
+        // Print Temperature: uint8, value × 5 = °C (used as fallback for min/max)
+        const printTemp = bytes[0x60] * 5;
+
+        // Bed Temperature: uint8, value × 5 = °C
+        this.bedTemp = bytes[0x61] * 5 || "";
+
+        // Density: uint16, value / 1000 = g/cm³
+        const densRaw = view.getUint16(0x62, false);
+        this.density = densRaw ? (densRaw / 1000).toFixed(3) : "";
+
+        // Extended fields: Min/Max Print Temp at 0xB4/0xB5 (uint8, × 5 = °C)
+        let minT = 0, maxT = 0;
+        if (bytes.length > 0xB5) {
+            minT = bytes[0xB4] * 5;
+            maxT = bytes[0xB5] * 5;
+        }
+        this.minTemp = minT || printTemp || "";
+        this.maxTemp = maxT || printTemp || "";
+
+        // Serialize to base64 string for localStorage
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        this.rawData = FilamentOpenTag.rawPrefix + btoa(bin);
+
+        return true;
+    }
+
+    // Parse from localStorage string ("OT3D:" + base64)
+    parseDataString(data) {
+        if (!FilamentOpenTag.isValidFormat(data)) return false;
+        if (data instanceof DataView || data instanceof Uint8Array || data instanceof ArrayBuffer) {
+            return this.parseBytes(data);
+        }
+        try {
+            const bin = atob(data.slice(FilamentOpenTag.rawPrefix.length));
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return this.parseBytes(bytes);
+        } catch(e) {
+            console.log("Error parsing OpenTag3D data: " + e);
+            return false;
+        }
+    }
+
+    static tryParse(dataView) {
+        let tag = new FilamentOpenTag();
+        return tag.parseBytes(dataView) ? tag : null;
+    }
+
+    display(parentEl) {
+        var tbl = document.createElement("table");
+        tbl.classList.add("table", "table-striped", "table-bordered");
+        const {...iterableSelf} = this;
+
+        Object.entries(iterableSelf).forEach(([k, v]) => {
+            var displayK = FilamentOpenTag.displayMap[k] || k;
+
+            let tr = tbl.insertRow();
+            tr.setAttribute("scope", "row");
+            let td = tr.insertCell();
+            td.setAttribute("scope", "col");
+            let th = document.createElement("th");
+            tr.insertBefore(th, td);
+
+            th.innerText = displayK;
+            if (k === "colorHex") {
+                v = v.substring(0, 6);
+                td.innerText = v;
+                let box = document.createElement("div");
+                box.style.backgroundColor = '#' + v;
+                box.classList.add("color-box");
+                td.appendChild(box);
+            } else {
+                td.innerText = v;
+            }
+            if (k === "rawData") {
+                td.classList.add("raw-tag-data");
+            }
+        });
+
+        parentEl.appendChild(tbl);
+    }
+}
+
 function parseActiveTag() {
     let tagData = getActiveTagData();
     if (tagData == null) {
         document.querySelector("#error").innerText = "No active tag found"
         return null
     }
-    
-    let tag = FilamentOpenSpool.newEmpty();
-    if (! tag.parseDataString(tagData)) {
-        document.querySelector("#error").innerText = "Active tag could not be parsed as OpenSpool format"
-        return null
-    }
-    return tag;
+
+    let fosTag = FilamentOpenSpool.newEmpty();
+    if (fosTag.parseDataString(tagData)) return fosTag;
+
+    let fotTag = FilamentOpenTag.newEmpty();
+    if (fotTag.parseDataString(tagData)) return fotTag;
+
+    document.querySelector("#error").innerText = "Active tag could not be parsed"
+    return null
 }
 
 function activateTag(tag) {
