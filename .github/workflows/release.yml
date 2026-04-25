@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for version bump
+        id: check
+        run: |
+          CLIENT=$(grep '^const CLIENT_VERSION = ' client/javascript/server.js | sed 's/const CLIENT_VERSION = "\(.*\)"/\1/')
+          PREV_CLIENT=$(git show HEAD~1:client/javascript/server.js 2>/dev/null \
+                       | grep '^const CLIENT_VERSION = ' \
+                       | sed 's/const CLIENT_VERSION = "\(.*\)"/\1/' \
+                       || echo "")
+
+          if [ "$CLIENT" != "$PREV_CLIENT" ] && [ -n "$CLIENT" ]; then
+            echo "bump=true" >> $GITHUB_OUTPUT
+            echo "version=$CLIENT" >> $GITHUB_OUTPUT
+          else
+            echo "bump=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check tag does not already exist
+        if: steps.check.outputs.bump == 'true'
+        id: tag_check
+        run: |
+          TAG="v${{ steps.check.outputs.version }}"
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+            echo "Tag ${TAG} already exists, skipping"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create tag
+        if: steps.check.outputs.bump == 'true' && steps.tag_check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.check.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          #gh release create "$TAG" --generate-notes --title "$TAG"

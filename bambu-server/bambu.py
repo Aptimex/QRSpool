@@ -10,9 +10,21 @@ from configs.bambu_config import IP, SERIAL, ACCESS_CODE
 def getKnownFilaments(path = "./configs/bambu-ams-codes.json"):
     with open(path, "r") as f:
         codes = json.loads(f.read())
-    #print(f"Loaded {len(codes)} filament codes")
     return codes
-CODES = getKnownFilaments() #not actualy used, but try loading them at start so errors are apparent
+
+def getTypeAbbreviations(path = "./configs/type-abbreviations.json"):
+    with open(path, "r") as f:
+        return json.loads(f.read())
+
+def getModifierAbbreviations(path = "./configs/modifier-abbreviations.json"):
+    with open(path, "r") as f:
+        return json.loads(f.read())
+
+#try loading files at start so server will immediately crash if they are missing/invalid
+getKnownFilaments()
+getTypeAbbreviations()
+getModifierAbbreviations()
+
 PRINTER = bl.Printer(IP, ACCESS_CODE, SERIAL)
 EXTERNAL_SPOOL_AMSID = 255
 EXTERNAL_SPOOL_SLOTID = 254
@@ -146,7 +158,7 @@ def getSlots():
     
     return resp
 
-def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0):
+def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0, colorName = ""):
     ensureConnected()
 
     minTemp = 0 if (minTemp == "") else minTemp
@@ -172,7 +184,9 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0)
     except Exception as e:
         return False, f"Invalid max temperature: {maxTemp}: {e}"
     
-    code = filamentToCode(brand, fType)
+    code, codeError = filamentToCode(brand, fType, colorName)
+    if codeError:
+        return False, codeError
     if not code:
         return False, "Unable to match brand and type with known Bambu codes"
     
@@ -194,43 +208,147 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0)
     else:
         return False, "Printer rejected setFilament request for unknown reasons"
 
-# Combine manufacturer and type, normalize spaces, convert to lowercase, and compare
-# If an exact match isn't found, change the manufacturer to "generic" and look again
-# If that's not found, check if the type is a known code and use that directly
-# Otherwise return None
-def filamentToCode(fManufacturer: str, fType: str):
-    # Check if the filament code is set directly in the tag
+# Returns (code, error). On success error is None; on ambiguous prefix match code is None, 
+# and the error describes the candidates; on no match both are None. 
+# Other errors are returned as (None, error).
+#
+# Lookup order:
+#   1. If type is blank: try progressively shorter prefixes of colorName as the type (Option 1)
+#   2. Exact brand+type → exact generic+type → direct Bambu code → prefix brand+type → prefix generic+type
+#   3. If a match is found: try to upgrade to a more specific entry using colorName words (Option 3)
+# 
+# Most of this logic is just to proactively handle several workarounds people will likely use for the 
+# type and modifier byte limits in the OpenTag3D standard.
+def filamentToCode(fManufacturer: str, fType: str, colorName: str = ""):
     if fManufacturer == "RAWCODE":
-        return fType
+        return fType, None
 
-    lookup = ("" + fManufacturer.strip() + " " + fType.strip()).lower()
-    lookupGeneric = ("Generic " + fType.strip()).lower()
-    lookupByCode = fType.strip().lower()
-    backupCode = ""
-    
+    # Some filament names have a - between the type and modifier, normalize to a space for easier matching logic
+    def normalize(s):
+        return s.replace("-", " ").lower()
+
     try:
         fCodes = getKnownFilaments()
     except Exception as e:
-        print(f"Unable to load known filament codes: {e}")
-        return None
-    
+        msg = f"Unable to load known filament codes: {e}"
+        print(msg)
+        return None, msg
+
     knownTypes = list(fCodes.keys())
-    
-    for t in knownTypes:
-        if lookup == t.lower():
-            # Return exact match
-            return fCodes[t]
-        if lookupGeneric == t.lower():
-            # This match will be returned later if an exact match isn't found
-            backupCode = fCodes[t]
-    
-    if backupCode != "":
-        return backupCode
-    
-    # No match, check if the filament type is a known code
-    knownCodes = list(fCodes.values())
-    for c in knownCodes:
-        if lookupByCode == c.lower():
-            return c
-    
-    return None
+
+    def tryExact(manufacturer, typeStr):
+        """Exact brand+type, then generic fallback, then direct code. Returns (code, None) or (None, None)."""
+        lookup = normalize(manufacturer.strip() + " " + typeStr.strip())
+        lookupGeneric = normalize("Generic " + typeStr.strip())
+        backupCode = ""
+        for t in knownTypes:
+            if lookup == normalize(t):
+                return fCodes[t], None
+            if lookupGeneric == normalize(t):
+                backupCode = fCodes[t]
+        if backupCode:
+            return backupCode, None
+        for c in fCodes.values():
+            if typeStr.strip().lower() == c.lower():
+                return c, None
+        return None, None
+
+    def tryPrefix(manufacturer, typeStr):
+        """Prefix matching with ambiguity detection. Returns (code, error)."""
+        lookup = normalize(manufacturer.strip() + " " + typeStr.strip())
+        lookupGeneric = normalize("Generic " + typeStr.strip())
+
+        def prefixMatches(prefix):
+            return [t for t in knownTypes if normalize(t).startswith(prefix)]
+
+        def ambiguousError(matches):
+            names = ", ".join(f'"{m}"' for m in matches[:4])
+            if len(matches) > 4:
+                names += f" and {len(matches) - 4} more"
+            return f'Ambiguous filament type "{typeStr.strip()}" matches multiple entries: {names}. Use RAWCODE for an exact match.'
+
+        for prefix in [lookup, lookupGeneric]:
+            ms = prefixMatches(prefix)
+            if len(ms) == 1:
+                return fCodes[ms[0]], None
+            if len(ms) > 1:
+                return None, ambiguousError(ms)
+        return None, None
+
+    def tryLookup(manufacturer, typeStr):
+        """Try exact then prefix. Returns (code, error)."""
+        code, _ = tryExact(manufacturer, typeStr)
+        if code:
+            return code, None
+        return tryPrefix(manufacturer, typeStr)
+
+    def tryExpanded(manufacturer, typeStr):
+        """Expand abbreviated base type and/or modifier, then retry lookup.
+        Returns (code, error) or (None, None) if nothing expanded or still no match."""
+        try:
+            typeAbbrevs = getTypeAbbreviations()
+            modAbbrevs = getModifierAbbreviations()
+        except Exception as e:
+            msg = f"Unable to load abbreviation files: {e}"
+            print(msg)
+            return None, msg
+
+        def reverseMap(abbrevDict):
+            return {abbrev.lower(): full
+                    for full, abbrevs in abbrevDict.items()
+                    for abbrev in abbrevs}
+
+        typeRevMap = reverseMap(typeAbbrevs)
+        modRevMap  = reverseMap(modAbbrevs)
+
+        parts = typeStr.strip().split(" ", 1)
+        base     = parts[0]
+        modifier = parts[1] if len(parts) > 1 else ""
+
+        expandedBase = typeRevMap.get(base.lower(), base)
+        expandedMod  = modRevMap.get(modifier.lower(), modifier) if modifier else ""
+
+        expandedType = (expandedBase + " " + expandedMod).strip()
+        if expandedType.lower() == typeStr.strip().lower():
+            return None, None  # nothing changed, no point retrying
+
+        return tryLookup(manufacturer, expandedType)
+
+    # Option 1: type is blank — try progressively shorter prefixes of colorName as the full type
+    if not fType.strip() and colorName.strip():
+        words = colorName.strip().split()
+        for length in range(len(words), 0, -1):
+            candidate = " ".join(words[:length])
+            code, err = tryLookup(fManufacturer, candidate)
+            if code:
+                return code, None
+            if err:
+                return None, err
+            code, err = tryExpanded(fManufacturer, candidate)
+            if code:
+                return code, None
+            if err:
+                return None, err
+        return None, None
+
+    # Normal lookup
+    code, err = tryLookup(fManufacturer, fType)
+    if err:
+        return None, err
+    if not code:
+        code, err = tryExpanded(fManufacturer, fType)
+        if err:
+            return None, err
+        if not code:
+            return None, None
+
+    # Option 3: try to upgrade to a more specific match using colorName words
+    if colorName.strip():
+        words = colorName.strip().split()
+        for length in range(len(words), 0, -1):
+            extendedType = fType.strip() + " " + " ".join(words[:length])
+            upgradeCode, _ = tryExact(fManufacturer, extendedType)
+            if upgradeCode:
+                return upgradeCode, None
+
+    return code, None
