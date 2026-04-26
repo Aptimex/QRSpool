@@ -19,10 +19,10 @@ jobs:
       - name: Check for version bump
         id: check
         run: |
-          CLIENT=$(grep '^const CLIENT_VERSION = ' client/javascript/server.js | sed 's/const CLIENT_VERSION = "\(.*\)"/\1/')
+          CLIENT=$(grep '^const CLIENT_VERSION = ' client/javascript/server.js | sed 's/const CLIENT_VERSION = "\([^"]*\)".*/\1/')
           PREV_CLIENT=$(git show HEAD~1:client/javascript/server.js 2>/dev/null \
                        | grep '^const CLIENT_VERSION = ' \
-                       | sed 's/const CLIENT_VERSION = "\(.*\)"/\1/' \
+                       | sed 's/const CLIENT_VERSION = "\([^"]*\)".*/\1/' \
                        || echo "")
 
           if [ "$CLIENT" != "$PREV_CLIENT" ] && [ -n "$CLIENT" ]; then
