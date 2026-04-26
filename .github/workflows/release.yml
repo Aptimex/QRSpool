@@ -14,16 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Check for version bump
         id: check
         run: |
           CLIENT=$(grep '^const CLIENT_VERSION = ' client/javascript/server.js | sed 's/const CLIENT_VERSION = "\([^"]*\)".*/\1/')
-          PREV_CLIENT=$(git show HEAD~1:client/javascript/server.js 2>/dev/null \
+          LATEST_TAG=$(git tag --sort=-version:refname | head -1)
+          PREV_CLIENT=$(git show "${LATEST_TAG}:client/javascript/server.js" \
                        | grep '^const CLIENT_VERSION = ' \
-                       | sed 's/const CLIENT_VERSION = "\([^"]*\)".*/\1/' \
-                       || echo "")
+                       | sed 's/const CLIENT_VERSION = "\([^"]*\)".*/\1/')
 
           if [ "$CLIENT" != "$PREV_CLIENT" ] && [ -n "$CLIENT" ]; then
             echo "bump=true" >> $GITHUB_OUTPUT
