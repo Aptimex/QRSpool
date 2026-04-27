@@ -131,18 +131,25 @@ function startNFCScan() {
                 }
 
                 case "mime": {
-                    if (record.mediaType !== FilamentOpenTag.mimeType) {
+                    let mimeTag = null;
+                    if (record.mediaType === FilamentOpenTag.mimeType) {
+                        console.log("Parsing OpenTag3D record");
+                        mimeTag = FilamentOpenTag.tryParse(record.data);
+                    } else if (record.mediaType === FilamentOpenPrintTag.mimeType) {
+                        console.log("Parsing OpenPrintTag record");
+                        mimeTag = FilamentOpenPrintTag.tryParse(record.data);
+                    } else {
                         console.log("Unsupported MIME type: " + record.mediaType);
                         nfcError("NFC Error: Unsupported MIME type");
                         break;
                     }
-                    console.log("Parsing OpenTag3D record");
-                    let fotTag = FilamentOpenTag.tryParse(record.data);
-                    if (fotTag == null) {
-                        console.log("Error parsing OpenTag3D tag data");
+                    if (mimeTag == null) {
+                        console.log("Error parsing MIME NFC tag data");
                         nfcError("NFC Error: Unrecognized tag format");
                         break;
                     }
+                    // alias for the rest of the block
+                    let fotTag = mimeTag;
                     activateTag(fotTag);
                     if (typeof scanState !== 'undefined') { scanState.filamentScanned = true; }
                     const mimePairComplete = getActiveSlotIDs() != null;

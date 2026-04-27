@@ -551,6 +551,296 @@ class FilamentOpenTag {
     }
 }
 
+// OpenPrintTag spec: https://specs.openprinttag.org
+// CBOR-encoded NFC tag format, MIME type application/vnd.openprinttag
+// Stored in localStorage as base64 with "OPT:" prefix
+class FilamentOpenPrintTag {
+    static protocol = "OpenPrintTag";
+    static mimeType = "application/vnd.openprinttag";
+    static rawPrefix = "OPT:";
+
+    static MATERIAL_TYPE_MAP = {
+        0: "PLA", 1: "PETG", 2: "TPU", 3: "ABS", 4: "ASA", 5: "PC",
+        6: "PCTG", 7: "PP", 8: "PA6", 9: "PA11", 10: "PA12", 11: "PA66",
+        12: "CPE", 13: "TPE", 14: "HIPS", 15: "PHA",
+    };
+
+    static displayMap = {
+        "rawData": "Raw Tag Data",
+        "displayProtocol": "Tag Protocol",
+        "type": "Type",
+        "colorHex": "Color",
+        "brand": "Brand",
+        "minTemp": "Min Print Temp (C)",
+        "maxTemp": "Max Print Temp (C)",
+        "minBedTemp": "Min Bed Temp (C)",
+        "maxBedTemp": "Max Bed Temp (C)",
+        "diameter": "Diameter (mm)",
+        "weight": "Weight (g)",
+        "density": "Density (g/cm³)",
+    };
+
+    constructor() {
+        this.rawData = null;
+        this.displayProtocol = FilamentOpenPrintTag.protocol;
+        this.type = "";
+        this.colorHex = "";
+        this.brand = "";
+        this.minTemp = "";
+        this.maxTemp = "";
+        this.minBedTemp = "";
+        this.maxBedTemp = "";
+        this.diameter = "";
+        this.weight = "";
+        this.density = "";
+    }
+
+    static newEmpty() {
+        return new FilamentOpenPrintTag();
+    }
+
+    static isValidFormat(data) {
+        if (data instanceof DataView || data instanceof Uint8Array || data instanceof ArrayBuffer) return true;
+        return typeof data === 'string' && data.startsWith(FilamentOpenPrintTag.rawPrefix);
+    }
+
+    // Minimal CBOR decoder. Returns {value, pos} where pos is the byte index after the decoded item.
+    static _decodeCBOR(bytes, pos) {
+        const first = bytes[pos++];
+        const major = first >> 5;
+        const info = first & 0x1f;
+
+        // Major type 7: floats and simple values — handle before reading numeric arg
+        if (major === 7) {
+            if (info === 20) return { value: false, pos };
+            if (info === 21) return { value: true, pos };
+            if (info === 22) return { value: null, pos };
+            if (info === 23) return { value: undefined, pos };
+            if (info === 24) return { value: bytes[pos++], pos };
+            if (info === 25) {  // half-float
+                const b = (bytes[pos] << 8) | bytes[pos + 1]; pos += 2;
+                const exp = (b >> 10) & 0x1f, mant = b & 0x3ff;
+                let v = exp === 0 ? mant * 5.960464477539063e-8
+                      : exp !== 31 ? (mant + 1024) * Math.pow(2, exp - 25)
+                      : mant ? NaN : Infinity;
+                return { value: (b & 0x8000) ? -v : v, pos };
+            }
+            if (info === 26) {  // float32
+                const dv = new DataView(bytes.buffer, bytes.byteOffset + pos, 4); pos += 4;
+                return { value: dv.getFloat32(0, false), pos };
+            }
+            if (info === 27) {  // float64
+                const dv = new DataView(bytes.buffer, bytes.byteOffset + pos, 8); pos += 8;
+                return { value: dv.getFloat64(0, false), pos };
+            }
+            if (info === 31) return { value: null, pos };  // break code, caller handles via loop check
+            return { value: info, pos };
+        }
+
+        // Read numeric argument (length or integer value)
+        let arg;
+        if (info < 24) {
+            arg = info;
+        } else if (info === 24) {
+            arg = bytes[pos++];
+        } else if (info === 25) {
+            arg = (bytes[pos] << 8) | bytes[pos + 1]; pos += 2;
+        } else if (info === 26) {
+            arg = ((bytes[pos] << 24) | (bytes[pos + 1] << 16) | (bytes[pos + 2] << 8) | bytes[pos + 3]) >>> 0; pos += 4;
+        } else if (info === 27) {
+            const hi = ((bytes[pos] << 24) | (bytes[pos+1] << 16) | (bytes[pos+2] << 8) | bytes[pos+3]) >>> 0; pos += 4;
+            const lo = ((bytes[pos] << 24) | (bytes[pos+1] << 16) | (bytes[pos+2] << 8) | bytes[pos+3]) >>> 0; pos += 4;
+            arg = hi * 0x100000000 + lo;
+        }
+        // info === 31: indefinite-length, arg is undefined
+
+        switch (major) {
+            case 0: return { value: arg, pos };
+            case 1: return { value: -1 - arg, pos };
+            case 2: {  // byte string
+                if (info === 31) {
+                    const chunks = [];
+                    while (bytes[pos] !== 0xFF) {
+                        const r = FilamentOpenPrintTag._decodeCBOR(bytes, pos); chunks.push(r.value); pos = r.pos;
+                    }
+                    pos++;
+                    const total = chunks.reduce((a, b) => a + b.length, 0);
+                    const out = new Uint8Array(total); let off = 0;
+                    for (const c of chunks) { out.set(c, off); off += c.length; }
+                    return { value: out, pos };
+                }
+                return { value: bytes.subarray(pos, pos + arg), pos: pos + arg };
+            }
+            case 3: {  // text string
+                if (info === 31) {
+                    const parts = [];
+                    while (bytes[pos] !== 0xFF) {
+                        const r = FilamentOpenPrintTag._decodeCBOR(bytes, pos); parts.push(r.value); pos = r.pos;
+                    }
+                    pos++;
+                    return { value: parts.join(''), pos };
+                }
+                return { value: new TextDecoder().decode(bytes.subarray(pos, pos + arg)), pos: pos + arg };
+            }
+            case 4: {  // array
+                const arr = [];
+                if (info === 31) {
+                    while (bytes[pos] !== 0xFF) {
+                        const r = FilamentOpenPrintTag._decodeCBOR(bytes, pos); arr.push(r.value); pos = r.pos;
+                    }
+                    pos++;
+                } else {
+                    for (let i = 0; i < arg; i++) {
+                        const r = FilamentOpenPrintTag._decodeCBOR(bytes, pos); arr.push(r.value); pos = r.pos;
+                    }
+                }
+                return { value: arr, pos };
+            }
+            case 5: {  // map (keys are integers per spec)
+                const map = {};
+                if (info === 31) {
+                    while (bytes[pos] !== 0xFF) {
+                        const kr = FilamentOpenPrintTag._decodeCBOR(bytes, pos); pos = kr.pos;
+                        const vr = FilamentOpenPrintTag._decodeCBOR(bytes, pos); pos = vr.pos;
+                        map[kr.value] = vr.value;
+                    }
+                    pos++;
+                } else {
+                    for (let i = 0; i < arg; i++) {
+                        const kr = FilamentOpenPrintTag._decodeCBOR(bytes, pos); pos = kr.pos;
+                        const vr = FilamentOpenPrintTag._decodeCBOR(bytes, pos); pos = vr.pos;
+                        map[kr.value] = vr.value;
+                    }
+                }
+                return { value: map, pos };
+            }
+            case 6: {  // tagged value — skip the tag number, decode the next item
+                return FilamentOpenPrintTag._decodeCBOR(bytes, pos);
+            }
+        }
+        throw new Error(`Unknown CBOR major type ${major}`);
+    }
+
+    parseBytes(dataView) {
+        let bytes;
+        if (dataView instanceof DataView) {
+            bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
+        } else if (dataView instanceof Uint8Array) {
+            bytes = dataView;
+        } else if (dataView instanceof ArrayBuffer) {
+            bytes = new Uint8Array(dataView);
+        } else {
+            return false;
+        }
+
+        try {
+            // Meta section is always at payload offset 0
+            const metaResult = FilamentOpenPrintTag._decodeCBOR(bytes, 0);
+            const meta = metaResult.value;
+
+            // Main region offset: meta key 0, or immediately after meta section if absent
+            const mainOffset = (meta[0] !== undefined) ? meta[0] : metaResult.pos;
+            const main = FilamentOpenPrintTag._decodeCBOR(bytes, mainOffset).value;
+
+            // material_name (key 10) is the preferred display name; fall back to material_type abbreviation (key 9)
+            this.type = main[10] || FilamentOpenPrintTag.MATERIAL_TYPE_MAP[main[9]] || "";
+
+            // brand_name (key 11)
+            this.brand = main[11] || "";
+
+            // primary_color (key 19): RGBA byte string, take RGB as hex
+            const colorBytes = main[19];
+            if (colorBytes instanceof Uint8Array && colorBytes.length >= 3) {
+                this.colorHex = Array.from(colorBytes.subarray(0, 3))
+                    .map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+
+            // Print temperatures: min (key 34), max (key 35)
+            this.minTemp = main[34] !== undefined ? main[34] : "";
+            this.maxTemp = main[35] !== undefined ? main[35] : "";
+
+            // Bed temperatures: min (key 37), max (key 38)
+            this.minBedTemp = main[37] !== undefined ? main[37] : "";
+            this.maxBedTemp = main[38] !== undefined ? main[38] : "";
+
+            // Filament diameter in mm (key 30)
+            this.diameter = main[30] !== undefined ? main[30] : "";
+
+            // Weight in g: prefer actual (key 17), fall back to nominal (key 16)
+            this.weight = main[17] !== undefined ? main[17] : (main[16] !== undefined ? main[16] : "");
+
+            // Density in g/cm³ (key 29)
+            this.density = main[29] !== undefined ? main[29] : "";
+
+            // Serialize raw bytes as base64 for localStorage
+            let bin = '';
+            for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+            this.rawData = FilamentOpenPrintTag.rawPrefix + btoa(bin);
+
+            return true;
+        } catch (e) {
+            console.log("Error parsing OpenPrintTag data: " + e);
+            return false;
+        }
+    }
+
+    // Parse from localStorage string ("OPT:" + base64) or binary DataView/Uint8Array/ArrayBuffer
+    parseDataString(data) {
+        if (!FilamentOpenPrintTag.isValidFormat(data)) return false;
+        if (data instanceof DataView || data instanceof Uint8Array || data instanceof ArrayBuffer) {
+            return this.parseBytes(data);
+        }
+        try {
+            const bin = atob(data.slice(FilamentOpenPrintTag.rawPrefix.length));
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return this.parseBytes(bytes);
+        } catch (e) {
+            console.log("Error parsing OpenPrintTag data: " + e);
+            return false;
+        }
+    }
+
+    static tryParse(dataView) {
+        const tag = new FilamentOpenPrintTag();
+        return tag.parseBytes(dataView) ? tag : null;
+    }
+
+    display(parentEl) {
+        const tbl = document.createElement("table");
+        tbl.classList.add("table", "table-striped", "table-bordered");
+        const {...iterableSelf} = this;
+
+        Object.entries(iterableSelf).forEach(([k, v]) => {
+            const displayK = FilamentOpenPrintTag.displayMap[k] || k;
+
+            const tr = tbl.insertRow();
+            tr.setAttribute("scope", "row");
+            const td = tr.insertCell();
+            td.setAttribute("scope", "col");
+            const th = document.createElement("th");
+            tr.insertBefore(th, td);
+
+            th.innerText = displayK;
+            if (k === "colorHex") {
+                v = v.substring(0, 6);
+                td.innerText = v;
+                const box = document.createElement("div");
+                box.style.backgroundColor = '#' + v;
+                box.classList.add("color-box");
+                td.appendChild(box);
+            } else {
+                td.innerText = v;
+            }
+            if (k === "rawData") {
+                td.classList.add("raw-tag-data");
+            }
+        });
+
+        parentEl.appendChild(tbl);
+    }
+}
+
 function parseActiveTag() {
     let tagData = getActiveTagData();
     if (tagData == null) {
@@ -563,6 +853,9 @@ function parseActiveTag() {
 
     let fotTag = FilamentOpenTag.newEmpty();
     if (fotTag.parseDataString(tagData)) return fotTag;
+
+    let optTag = FilamentOpenPrintTag.newEmpty();
+    if (optTag.parseDataString(tagData)) return optTag;
 
     document.querySelector("#error").innerText = "Active tag could not be parsed"
     return null
