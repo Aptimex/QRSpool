@@ -8,7 +8,7 @@
 
 Change your printer's multi-spool filament settings by scanning custom QR codes or NFC tags with your smartphone. Also supports [OpenSpool](https://openspool.io/) and [OpenTag3D](https://opentag3d.info/) NFC tags in Chrome on Android. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8). 
 
-**This project is in Beta. It's fully functional, but please report any issues or bugs you encounter since I can't test every compatible printer or filament setting.**
+**This project is in Beta. It's fully functional for printers that use the old LAN mode (not the new LAN+Developer mode), but please report any issues or bugs you encounter since I can't test every compatible printer or filament setting.**
 
 ## User Experience
 
@@ -40,10 +40,10 @@ This project consists of two mostly-decoupled components:
 
 </div>
 
-Currently I have implemented a Python (Flask) backend server that will communicate with Bambu Labs printers in LAN-only mode (LAN+Developer mode on newer printers/firmware) using the [bambulabs-api library](https://pypi.org/project/bambulabs-api/). Other servers could be written to support other printer brands without needing to change the frontend code. If you write such a server let me know so I can link to it. 
+Currently I have implemented a Python (Flask) backend server that will communicate with Bambu Labs printers in LAN-only mode (LAN+Developer mode on newer printers/firmware is not yet supported) using the [bambulabs-api library](https://pypi.org/project/bambulabs-api/). Other servers could be written to support other printer brands without needing to change the frontend code. If you write such a server let me know so I can link to it. 
 
 ### Requirements
-- A Bambu Labs printer in LAN-only mode (LAN+Developer mode on newer printers/firmware); other brands may be supported in the future
+- A Bambu Labs printer in LAN-only mode (LAN+Developer mode on newer printers/firmware is not yet supported); other brands may be supported in the future
 - A server (always-on computer) with a static IP or reliable DNS name on the same LAN as the printer
     - Needs to be able to run either Docker or Python 3 (tested with >=3.10.12)
 - A smartphone with camera, or a computer with a webcam (a USB webcam with long cable is best)

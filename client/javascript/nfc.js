@@ -34,6 +34,16 @@ function parseNFCData(data) {
         return {type: 'slot', tag: slotTag};
     }
 
+    var printerSlotTag = PrinterSlotTag.tryParse(data);
+    if (printerSlotTag != null) {
+        return {type: 'printer-slot', tag: printerSlotTag};
+    }
+
+    var printerTag = PrinterTag.tryParse(data);
+    if (printerTag != null) {
+        return {type: 'printer', tag: printerTag};
+    }
+
     console.log("Error parsing NFC tag data");
     return null;
 }
@@ -126,6 +136,55 @@ function startNFCScan() {
                             if (typeof playScanSound === 'function') playScanSound(false);
                             if (typeof updateScanStatus === 'function') updateScanStatus();
                         }
+
+                    } else if (result.type === 'printer-slot') {
+                        console.log("Switching printer and setting slot via NFC tag");
+                        setActiveSlotIDs(JSON.stringify(result.tag.ids));
+                        if (typeof scanState !== 'undefined') { scanState.slotScanned = true; }
+                        const filamentAlreadyScanned = getActiveTagData() != null;
+                        navigator.vibrate(filamentAlreadyScanned ? [80, 50, 80] : 100);
+                        if (typeof playScanSound === 'function') playScanSound(filamentAlreadyScanned);
+                        setActivePrinter(result.tag.name).then(switchResult => {
+                            if (typeof onNFCTagScanned === 'function') {
+                                onNFCTagScanned('printer-slot', result.tag, switchResult);
+                            } else {
+                                const statusEl = document.querySelector("#nfc-status");
+                                if (switchResult.error) {
+                                    if (statusEl) {
+                                        statusEl.innerText = "Error switching printer: " + switchResult.error;
+                                        statusEl.style.color = "red";
+                                    }
+                                } else if (filamentAlreadyScanned) {
+                                    setTimeout(() => { window.location.href = "apply.html"; }, 300);
+                                } else {
+                                    if (statusEl) {
+                                        statusEl.innerText = "Printer “" + switchResult.name + "” selected. Scan a filament tag.";
+                                        statusEl.style.color = "green";
+                                    }
+                                }
+                            }
+                        });
+
+                    } else if (result.type === 'printer') {
+                        console.log("Switching printer via NFC tag");
+                        navigator.vibrate(100);
+                        if (typeof playScanSound === 'function') playScanSound(false);
+                        setActivePrinter(result.tag.name).then(switchResult => {
+                            if (typeof onNFCTagScanned === 'function') {
+                                onNFCTagScanned('printer', result.tag, switchResult);
+                            } else {
+                                const statusEl = document.querySelector("#nfc-status");
+                                if (statusEl) {
+                                    if (switchResult.error) {
+                                        statusEl.innerText = "Error switching printer: " + switchResult.error;
+                                        statusEl.style.color = "red";
+                                    } else {
+                                        statusEl.innerText = "Switched to printer “" + switchResult.name + "”.";
+                                        statusEl.style.color = "green";
+                                    }
+                                }
+                            }
+                        });
                     }
                     break;
                 }

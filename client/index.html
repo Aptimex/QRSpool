@@ -7,6 +7,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         
         <script src="javascript/localStorage.js"></script>
+        <script src="javascript/printer.js"></script>
         <script src="javascript/filament.js"></script>
         <script src="javascript/scanner.js" defer></script>
         <script src="javascript/server.js"></script>
@@ -26,7 +27,8 @@
 
         <main class="flex-shrink-0">
             <div class="container-fluid">
-        
+
+                <div id="printerBar"></div>
                 <h1>Scan</h1>
 
                 <div id="nfc-status">NFC Scanner Disabled</div>
@@ -59,6 +61,7 @@
     </body>
         
     <script>
+        injectPrinterSelector(document.getElementById('printerBar'));
         (async () => {
             //Force the server to (re)connect to the printer so later actions finish faster
             let pStatus = await getPrinterStatus();

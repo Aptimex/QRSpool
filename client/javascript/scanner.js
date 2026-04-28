@@ -211,6 +211,70 @@ function handleCodeData(data, tag=null) {
             return;
         }
 
+        // Try printer+slot tag
+        let printerSlotTag = PrinterSlotTag.tryParse(data);
+        if (printerSlotTag != null) {
+            lastScanTime = Date.now();
+            setActiveSlotIDs(JSON.stringify(printerSlotTag.ids));
+            scanState.slotScanned = true;
+            const pairComplete = scanState.filamentScanned;
+            navigator.vibrate(pairComplete ? [80, 50, 80] : 100);
+            playScanSound(pairComplete);
+            const statusEl = document.getElementById("scanStatus");
+            if (statusEl) {
+                statusEl.innerHTML = `Switching to printer "${printerSlotTag.name}"&hellip;`;
+                statusEl.className = "alert alert-info mt-2";
+                statusEl.hidden = false;
+            }
+            setActivePrinter(printerSlotTag.name).then(result => {
+                if (result.error) {
+                    if (statusEl) {
+                        statusEl.innerHTML = `Error switching printer: ${result.error}`;
+                        statusEl.className = "alert alert-danger mt-2";
+                    }
+                } else if (pairComplete) {
+                    keepLooking = false;
+                    turnOffTorch();
+                    setTimeout(() => { window.location.href = "./apply.html"; }, 250);
+                } else {
+                    if (statusEl) {
+                        statusEl.innerHTML = `&#10003; Printer &ldquo;${result.name}&rdquo; selected. Now scan a filament tag.`;
+                        statusEl.className = "alert alert-info mt-2";
+                        statusEl.hidden = false;
+                    }
+                }
+            });
+            return;
+        }
+
+        // Try printer tag
+        let printerTag = PrinterTag.tryParse(data);
+        if (printerTag != null) {
+            lastScanTime = Date.now();
+            navigator.vibrate(100);
+            playScanSound(false);
+            const statusEl = document.getElementById("scanStatus");
+            if (statusEl) {
+                statusEl.innerHTML = `Switching to printer "${printerTag.name}"&hellip;`;
+                statusEl.className = "alert alert-info mt-2";
+                statusEl.hidden = false;
+            }
+            setActivePrinter(printerTag.name).then(result => {
+                if (result.error) {
+                    if (statusEl) {
+                        statusEl.innerHTML = `Error switching printer: ${result.error}`;
+                        statusEl.className = "alert alert-danger mt-2";
+                    }
+                } else {
+                    if (statusEl) {
+                        statusEl.innerHTML = `&#10003; Switched to printer &ldquo;${result.name}&rdquo;.`;
+                        statusEl.className = "alert alert-success mt-2";
+                    }
+                }
+            });
+            return;
+        }
+
         if (! data || data.length < 1) {
             console.log("Invalid data read: [empty]");
             return;

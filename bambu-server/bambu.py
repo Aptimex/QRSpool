@@ -5,7 +5,7 @@ import bambulabs_api as bl
 import json
 
 #local files
-from configs.bambu_config import IP, SERIAL, ACCESS_CODE
+from configs.config_loader import PRINTERS
 
 def getKnownFilaments(path = "./configs/bambu-ams-codes.json"):
     with open(path, "r") as f:
@@ -25,25 +25,51 @@ getKnownFilaments()
 getTypeAbbreviations()
 getModifierAbbreviations()
 
-PRINTER = bl.Printer(IP, ACCESS_CODE, SERIAL)
+def _printer_name(idx, cfg):
+    return cfg.get("name") or cfg.get("ip", f"Printer {idx+1}")
+
+PRINTERS_MAP = {}
+for _i, _cfg in enumerate(PRINTERS):
+    _name = _printer_name(_i, _cfg)
+    if _name not in PRINTERS_MAP:  # first entry wins on duplicate names
+        PRINTERS_MAP[_name] = bl.Printer(_cfg["ip"], _cfg["access_code"], _cfg["serial"])
+
+PRINTER = next(iter(PRINTERS_MAP.values()))
 EXTERNAL_SPOOL_AMSID = 255
 EXTERNAL_SPOOL_SLOTID = 254
 
-def connect():
-    # Connect to the BambuLab 3D printer
-    PRINTER.connect()
-    PRINTER.camera_stop()
+CURRENT_PRINTER = PRINTER
+CURRENT_PRINTER_NAME = next(iter(PRINTERS_MAP.keys()))
 
-def ensureConnected():
-    if not PRINTER.mqtt_client_connected():
-        connect()
-        time.sleep(3)
-        if not PRINTER.mqtt_client_connected():
-            return makeError("Unable to connect to printer")
-    return None
+def setCurrentPrinter(printer, name):
+    global CURRENT_PRINTER, CURRENT_PRINTER_NAME
+    CURRENT_PRINTER = printer
+    CURRENT_PRINTER_NAME = name
+
+def findPrinterByName(name):
+    """Case-insensitive lookup. Returns (canonical_name, printer) or (None, None)."""
+    if name in PRINTERS_MAP:
+        return name, PRINTERS_MAP[name]
+    lower = name.lower()
+    for k, v in PRINTERS_MAP.items():
+        if k.lower() == lower:
+            return k, v
+    return None, None
+
+def connect():
+    CURRENT_PRINTER.connect()
+    CURRENT_PRINTER.camera_stop()
 
 def disconnect():
-    PRINTER.disconnect()
+    CURRENT_PRINTER.disconnect()
+
+def ensureConnected():
+    if not CURRENT_PRINTER.mqtt_client_connected():
+        connect()
+        time.sleep(3)
+        if not CURRENT_PRINTER.mqtt_client_connected():
+            return makeError("Unable to connect to printer")
+    return None
 
 def makeError(msg: str):
     return {
@@ -54,10 +80,18 @@ def getPrinterStatus():
     error = ensureConnected()
     if error:
         return error
-    
+
     return {
-        "status": PRINTER.get_state()
+        "status": CURRENT_PRINTER.get_state()
     }
+
+def getPrinterState():
+    error = ensureConnected()
+    if error:
+        return error
+
+    state = CURRENT_PRINTER.get_current_state()
+    return {"state": state.name}
 
 def trayToSlot(amsID, slotID, tray):
     # Start by just copying all the tray/slot data returned by the printer
@@ -124,31 +158,34 @@ def getSlots():
     if error:
         return error
     
-    amsh = PRINTER.ams_hub()
+    amsh = CURRENT_PRINTER.ams_hub()
     slots = []
 
-    for amsID, ams in amsh.ams_hub.items():
-        # https://github.com/BambuTools/bambulabs_api/blob/e775d9a1a0eb2f8478d64e6e61dae3c45a4507da/bambulabs_api/mqtt_client.py#L1229
-        # Printers don't seem to return info for slots that have no filament loaded
-        # Possibly the slicers just know to expect slots #0-3 for each AMS and display them as missing if no data is returned
-        # So try to emulate that behavior
-        newSlots = [
-            trayToSlot(amsID, 0, emptyTray(0)),
-            trayToSlot(amsID, 1, emptyTray(1)),
-            trayToSlot(amsID, 2, emptyTray(2)),
-            trayToSlot(amsID, 3, emptyTray(3))
-        ]
-        
-        for slotID, tray in ams.filament_trays.items():
-            slot = trayToSlot(amsID, slotID, tray)
-            #slots.append(slot)
-            #slots[slotID] = slot
-            newSlots[slotID] = slot
-        slots += newSlots
-    
-    externalTray = PRINTER.vt_tray()
-    slot = trayToSlot(EXTERNAL_SPOOL_AMSID, EXTERNAL_SPOOL_SLOTID, externalTray)
-    slots.append(slot)
+    if amsh is not None and amsh.ams_hub is not None:
+        for amsID, ams in amsh.ams_hub.items():
+            # https://github.com/BambuTools/bambulabs_api/blob/e775d9a1a0eb2f8478d64e6e61dae3c45a4507da/bambulabs_api/mqtt_client.py#L1229
+            # Printers don't seem to return info for slots that have no filament loaded
+            # Possibly the slicers just know to expect slots #0-3 for each AMS and display them as missing if no data is returned
+            # So try to emulate that behavior
+            newSlots = [
+                trayToSlot(amsID, 0, emptyTray(0)),
+                trayToSlot(amsID, 1, emptyTray(1)),
+                trayToSlot(amsID, 2, emptyTray(2)),
+                trayToSlot(amsID, 3, emptyTray(3))
+            ]
+
+            for slotID, tray in (ams.filament_trays or {}).items():
+                slot = trayToSlot(amsID, slotID, tray)
+                newSlots[slotID] = slot
+            slots += newSlots
+
+    try:
+        externalTray = CURRENT_PRINTER.vt_tray()
+    except AttributeError:
+        externalTray = None
+    if externalTray is not None:
+        slot = trayToSlot(EXTERNAL_SPOOL_AMSID, EXTERNAL_SPOOL_SLOTID, externalTray)
+        slots.append(slot)
 
     resp = {
         "slots": slots,
@@ -163,12 +200,12 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0,
 
     minTemp = 0 if (minTemp == "") else minTemp
     maxTemp = 0 if (maxTemp == "") else maxTemp
-    
+
     try:
         amsID = int(amsID)
     except Exception as e:
         return False, f"Invalid AMS ID '{amsID}': {e}"
-    
+
     try:
         trayID = int(trayID)
     except Exception as e:
@@ -183,26 +220,26 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0,
         maxTemp = int(maxTemp)
     except Exception as e:
         return False, f"Invalid max temperature: {maxTemp}: {e}"
-    
+
     code, codeError = filamentToCode(brand, fType, colorName)
     if codeError:
         return False, codeError
     if not code:
         return False, "Unable to match brand and type with known Bambu codes"
-    
+
     newFilament = bl.AMSFilamentSettings(code, minTemp, maxTemp, fType)
-    hub = PRINTER.ams_hub()
+    hub = CURRENT_PRINTER.ams_hub()
     try:
         _ = hub[amsID]
     except KeyError as e:
         return False, f"Printer does not recognize AMS #{amsID}"
-    
+
     try:
         _ = hub[amsID][trayID]
     except KeyError as e:
         return False, f"No filament is loaded in that slot, or printer does not advertise AMS #{amsID} with Slot #{trayID+1})"
-    
-    result = PRINTER.set_filament_printer(colorHex, newFilament, amsID, trayID)
+
+    result = CURRENT_PRINTER.set_filament_printer(colorHex, newFilament, amsID, trayID)
     if result:
         return True, ""
     else:

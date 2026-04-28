@@ -374,6 +374,64 @@ class SlotTag {
     }
 }
 
+// Printer QR/NFC tag format: PRNT|<name>
+class PrinterTag {
+    static PROTOCOL = "PRNT";
+    static DELIM = "|";
+
+    constructor(name) {
+        this.name = name;
+    }
+
+    static isValidFormat(data) {
+        return typeof data === 'string' && data.startsWith(PrinterTag.PROTOCOL + PrinterTag.DELIM);
+    }
+
+    static tryParse(data) {
+        if (!PrinterTag.isValidFormat(data)) return null;
+        const name = data.slice((PrinterTag.PROTOCOL + PrinterTag.DELIM).length).trim();
+        if (!name) return null;
+        return new PrinterTag(name);
+    }
+
+    toQRString() {
+        return PrinterTag.PROTOCOL + PrinterTag.DELIM + this.name;
+    }
+}
+
+// Printer+slot QR/NFC tag format: PRSL|<name>|<ids_json>
+class PrinterSlotTag {
+    static PROTOCOL = "PRSL";
+    static DELIM = "|";
+
+    constructor(name, ids) {
+        this.name = name;
+        this.ids = ids;
+    }
+
+    static isValidFormat(data) {
+        return typeof data === 'string' && data.startsWith(PrinterSlotTag.PROTOCOL + PrinterSlotTag.DELIM);
+    }
+
+    static tryParse(data) {
+        if (!PrinterSlotTag.isValidFormat(data)) return null;
+        try {
+            const rest = data.slice((PrinterSlotTag.PROTOCOL + PrinterSlotTag.DELIM).length);
+            const sepIdx = rest.indexOf(PrinterSlotTag.DELIM);
+            if (sepIdx < 1) return null;
+            const name = rest.slice(0, sepIdx).trim();
+            const ids = JSON.parse(rest.slice(sepIdx + 1));
+            if (!name) return null;
+            return new PrinterSlotTag(name, ids);
+        } catch(e) {}
+        return null;
+    }
+
+    toQRString() {
+        return PrinterSlotTag.PROTOCOL + PrinterSlotTag.DELIM + this.name + PrinterSlotTag.DELIM + JSON.stringify(this.ids);
+    }
+}
+
 // OpenTag3D spec: https://opentag3d.info/spec
 // Binary NFC tag format, MIME type application/opentag3d
 // Stored in localStorage as base64 with "OT3D:" prefix

@@ -224,6 +224,38 @@ async function getPrinterStatus() {
     return await serverGETjson("/printerStatus");
 }
 
+async function getPrinterState() {
+    return await serverGETjson("/printerState");
+}
+
 async function serverPrinterReconnect() {
     console.log(await serverGETjson("/reconnect"));
+}
+
+async function getPrinters() {
+    return await serverGETjson("/printers");
+}
+
+async function getActivePrinter() {
+    return await serverGETjson("/activePrinter");
+}
+
+async function setActivePrinter(name) {
+    let server = getServerURL();
+    if (!server) return makeError("Server not set");
+    let headers = new Headers({
+        'Content-Type': 'application/json',
+        "Authorization": getAuthHeader()
+    });
+    try {
+        const response = await fetch(server + "/activePrinter", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ name })
+        });
+        if (!response.ok) return makeError("Server responded with code " + response.status);
+        return response.json();
+    } catch (e) {
+        return makeError("Error connecting to server: " + e.message);
+    }
 }

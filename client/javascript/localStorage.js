@@ -149,6 +149,39 @@ function getScanDelay() {
     return v === null ? 1500 : parseInt(v);
 }
 
+// Saved Printer Profiles
+function getSavedPrinters() {
+    let v = localStorage.getItem("savedPrinters");
+    return v ? JSON.parse(v) : [];
+}
+
+function setSavedPrinters(printers) {
+    localStorage.setItem("savedPrinters", JSON.stringify(printers));
+}
+
+function getActivePrinterName() {
+    return localStorage.getItem("activePrinterName");
+}
+
+function setActivePrinterName(name) {
+    localStorage.setItem("activePrinterName", name);
+}
+
+function clearActivePrinterName() {
+    localStorage.removeItem("activePrinterName");
+}
+
+// Switch the active server to a saved printer profile
+function switchToPrinter(printer) {
+    setServer(printer.url);
+    setAuthCreds(printer.user || "", printer.pass || "");
+    setActivePrinterName(printer.name);
+}
+
+function deleteSavedPrinter(id) {
+    setSavedPrinters(getSavedPrinters().filter(p => p.id !== id));
+}
+
 //Torch
 function setTorchStart(tBool) {
     localStorage.setItem("torchStartsOn", tBool);
