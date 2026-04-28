@@ -30,31 +30,22 @@ def _printer_name(idx, cfg):
 
 PRINTERS_MAP = {}
 for _i, _cfg in enumerate(PRINTERS):
+    if _cfg.get("new_dev_mode"):
+        continue
     _name = _printer_name(_i, _cfg)
     if _name not in PRINTERS_MAP:  # first entry wins on duplicate names
         PRINTERS_MAP[_name] = bl.Printer(_cfg["ip"], _cfg["access_code"], _cfg["serial"])
 
-PRINTER = next(iter(PRINTERS_MAP.values()))
 EXTERNAL_SPOOL_AMSID = 255
 EXTERNAL_SPOOL_SLOTID = 254
 
-CURRENT_PRINTER = PRINTER
-CURRENT_PRINTER_NAME = next(iter(PRINTERS_MAP.keys()))
+CURRENT_PRINTER = next(iter(PRINTERS_MAP.values())) if PRINTERS_MAP else None
+CURRENT_PRINTER_NAME = next(iter(PRINTERS_MAP.keys())) if PRINTERS_MAP else None
 
-def setCurrentPrinter(printer, name):
+def setCurrentPrinter(cfg, name):
     global CURRENT_PRINTER, CURRENT_PRINTER_NAME
-    CURRENT_PRINTER = printer
+    CURRENT_PRINTER = PRINTERS_MAP[name]
     CURRENT_PRINTER_NAME = name
-
-def findPrinterByName(name):
-    """Case-insensitive lookup. Returns (canonical_name, printer) or (None, None)."""
-    if name in PRINTERS_MAP:
-        return name, PRINTERS_MAP[name]
-    lower = name.lower()
-    for k, v in PRINTERS_MAP.items():
-        if k.lower() == lower:
-            return k, v
-    return None, None
 
 def connect():
     CURRENT_PRINTER.connect()
