@@ -1,4 +1,4 @@
-const CLIENT_VERSION = "0.5.0";
+const CLIENT_VERSION = "0.6.0";
 
 // Minimum server version required by this client. Bump manually on breaking API changes.
 const MIN_SERVER_VERSION = "0.0.0";
@@ -6,7 +6,7 @@ const MIN_SERVER_VERSION = "0.0.0";
 // Minimum server version to support all current features. Servers between MIN and this
 // version still work but are missing newer functionality. Bump when adding non-breaking
 // new server features.
-const RECOMMENDED_SERVER_VERSION = "0.5.0";
+const RECOMMENDED_SERVER_VERSION = "0.6.0";
 
 // First server version to support the colorName field in /setFilament.
 // Servers older than this receive requests without colorName to avoid a TypeError.

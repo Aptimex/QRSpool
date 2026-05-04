@@ -220,6 +220,8 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0,
 
     newFilament = bl.AMSFilamentSettings(code, minTemp, maxTemp, fType)
     hub = CURRENT_PRINTER.ams_hub()
+    '''
+    # Validating the IDs more often then not just results in false negatives due to the printer sometimes not returning all the info it should
     try:
         _ = hub[amsID]
     except KeyError as e:
@@ -229,6 +231,7 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0,
         _ = hub[amsID][trayID]
     except KeyError as e:
         return False, f"No filament is loaded in that slot, or printer does not advertise AMS #{amsID} with Slot #{trayID+1})"
+    '''
 
     result = CURRENT_PRINTER.set_filament_printer(colorHex, newFilament, amsID, trayID)
     if result:

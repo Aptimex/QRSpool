@@ -8,7 +8,9 @@
 
 Change your printer's multi-spool filament settings by scanning custom QR codes or NFC tags with your smartphone. Also supports [OpenSpool](https://openspool.io/) and [OpenTag3D](https://opentag3d.info/) NFC tags in Chrome on Android. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8). 
 
-**This project is in Beta. It's fully functional for printers that use the old LAN mode (not the new LAN+Developer mode), but please report any issues or bugs you encounter since I can't test every compatible printer or filament setting.**
+**This project is in Beta. It's fully functional for printers that use the old LAN mode, but please report any issues or bugs you encounter since I can't test every compatible printer or filament setting.**
+
+**Highly experimental support for newer Bambu printers that use LAN+DEV mode is also now provided.** Only tested on a P2S (firmware 01.02.00.00) with AMS 2 Pro (firmware 04.00.21.87). If you know of a python library that provides proper well-tested support for this new mode please let me know. 
 
 ## User Experience
 
@@ -115,13 +117,26 @@ The remaining fields, separated by the pipe (`|`) character, should be replaced 
 ### Slot Tags
 Printer (AMS) slot QR codes use the following format:
 ```
-SLOT|IDS
+SLOT|IDS|PRINTER_NAME
 ```
 
-`SLOT` is a static string, like `OS1.0` above. `IDS` is a text string (typically JSON) that identifies the target printer slot. For Bambu printers with an AMS, this looks like:
+`SLOT` is a static string, like `OS1.0` above. `IDS` is a text string (typically JSON) that identifies the target printer slot. `PRINTER_NAME` is the name of the printer to switch to before applying the filament. Both `IDS` and `PRINTER_NAME` are optional — either or both can be left blank — but at least one must be present. For Bambu printers with an AMS, a full tag looks like:
 ```
-SLOT|{"amsID":0,"slotID":0}
+SLOT|{"amsID":0,"slotID":0}|My Printer
 ```
+
+A slot-only tag (no printer switching):
+```
+SLOT|{"amsID":0,"slotID":0}|
+```
+- The trailing `|` is optional
+
+A printer-only tag (switches printer without specifying a slot):
+```
+SLOT||My Printer
+```
+
+Only one printer can be "active" at a time, and switching printers takes several seconds server-side. For the fastest experience, always scan a filament tag before scanning a slot tag so you don't have to wait for the change in between scans. 
 
 The `ids` values for your slots are shown in the "↓ Show/Hide All Slot Info ↓" section of each slot on the Apply page. You can click/tap on it to copy it. 
 
@@ -131,7 +146,7 @@ The `ids` values for your slots are shown in the "↓ Show/Hide All Slot Info �
 ### Printing QR Codes
 I recommend [QR2STL](https://printer.tools/qrcode2stl) for generating printable QR codes (I have a forked copy [here](https://github.com/Aptimex/qrcode2stl) that you can easily self-host, with the delay-for-showing-ads functionality removed). It provides a lot of customization options (notably including different error correction levels) and a quick 3D preview of the STL.
 
-I've had good luck generating QR codes with this data format that are 30x30mm, printed with a 0.4mm nozzle. Smaller QR codes may be difficult to print with enough detail to be decoded reliably unless you switch to a 0.2mm nozzle. [Here's an example](https://printer.tools/qrcode2stl/#shareQR-eyJlcnJvckNvcnJlY3Rpb25MZXZlbCI6IkwiLCJ0ZXh0IjoiT1MxLjB8UExBIE1hdHRlfDFFODQ0MHxCYW1idXwxOTB8MjQwIiwiYmFzZSI6eyJ3aWR0aCI6MzAsImhlaWdodCI6MzAsImRlcHRoIjoxLCJjb3JuZXJSYWRpdXMiOjIsImhhc0JvcmRlciI6ZmFsc2UsImhhc1RleHQiOnRydWUsInRleHRNYXJnaW4iOjEuMiwidGV4dFNpemUiOjMsInRleHRNZXNzYWdlIjoiQmFtYnUgUExBXG5NYXR0ZSBHcmVlbiIsInRleHREZXB0aCI6MC40LCJoYXNLZXljaGFpbkF0dGFjaG1lbnQiOnRydWUsImtleWNoYWluUGxhY2VtZW50IjoidG9wIiwia2V5Y2hhaW5Ib2xlRGlhbWV0ZXIiOjV9LCJjb2RlIjp7ImRlcHRoIjowLjQsIm1hcmdpbiI6MS4yfX0=) of some good starting settings for generating your own QR codes. 
+I've had good luck generating QR codes with this data format that are 30x30mm, printed with a 0.4mm nozzle. Smaller QR codes may be difficult to print with enough detail to be decoded reliably unless you switch to a 0.2mm nozzle. [Here's an example](qr2stl.json) of some good starting settings for generating your own QR codes. 
 
 When printing, use the Arachne wall generation method for best results. 
 
@@ -168,7 +183,7 @@ You can pass filament data to the scan page (the website root) using URL paramet
 - `?qrstring=X`, where `X` is the same data string that you would write to a QR code. 
 - `?osjson=X`, where `X` is the JSON string that you would write to an OpenSpook NFC tag (with no line breaks). 
 - The 6 OpenSpool filament data keys as individual parameters. For example, `?type=A&color_hex=B&brand=C&min_temp=D&max_temp=E`. The presence of the `type` key is required to trigger processing this format. 
-- `?slotstring=X`, where `X` is the same data string that you would write to a slot QR code (e.g. `SLOT|{"amsID":0,"slotID":1}`). This stores the slot as the active slot tag, equivalent to scanning a slot QR code with the camera.
+- `?slotstring=X`, where `X` is the same data string that you would write to a slot QR code (e.g. `SLOT|{"amsID":0,"slotID":1}|` or `SLOT|{"amsID":0,"slotID":1}|My Printer`). This stores the slot as the active slot tag, equivalent to scanning a slot QR code with the camera.
 
 This allows you to create NFC tags with URL targets, which most modern smartphones will process natively without the need to have a specific app open. For example, you could create a NFC tag containing a link like this: 
 ```
@@ -178,7 +193,7 @@ When you tap that tag with your phone it should immediately open that link in a 
 
 If you want to, you can also combine a filament parameter with a slot parameter in the same URL to pre-load both at once:
 ```
-https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230&slotstring=SLOT|{"amsID":0,"slotID":1}
+https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230&slotstring=SLOT|{"amsID":0,"slotID":1}|
 ```
 
 > [!TIP]

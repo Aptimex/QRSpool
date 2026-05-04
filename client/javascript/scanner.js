@@ -195,83 +195,50 @@ function handleCodeData(data, tag=null) {
         let slotTag = SlotTag.tryParse(data);
         if (slotTag != null) {
             lastScanTime = Date.now();
-            setActiveSlotIDs(JSON.stringify(slotTag.ids));
-            scanState.slotScanned = true;
-            if (scanState.filamentScanned) {
-                navigator.vibrate([80, 50, 80]);
-                playScanSound(true);
+            if (slotTag.ids != null) {
+                setActiveSlotIDs(JSON.stringify(slotTag.ids));
+                scanState.slotScanned = true;
+            }
+            
+            const pairComplete = scanState.filamentScanned && scanState.slotScanned;
+            navigator.vibrate(pairComplete ? [80, 50, 80] : 100);
+            playScanSound(pairComplete);
+            if (slotTag.printer_name != null && slotTag.printer_name !== getActivePrinterName()) {
+                const statusEl = document.getElementById("scanStatus");
+                if (statusEl) {
+                    statusEl.innerHTML = `Switching to printer "${slotTag.printer_name}"&hellip;`;
+                    statusEl.className = "alert alert-info mt-2";
+                    statusEl.hidden = false;
+                }
+                setActivePrinter(slotTag.printer_name).then(result => {
+                    if (result.error) {
+                        if (statusEl) {
+                            statusEl.innerHTML = `Error switching printer: ${result.error}`;
+                            statusEl.className = "alert alert-danger mt-2";
+                        }
+                    } else {
+                        setActivePrinterName(result.name);
+                        if (pairComplete) {
+                            keepLooking = false;
+                            turnOffTorch();
+                            setTimeout(() => { window.location.href = "./apply.html"; }, 250);
+                        } else {
+                            if (statusEl) {
+                                const nextStep = scanState.filamentScanned ? "" : " Now scan a filament tag.";
+                                statusEl.innerHTML = `&#10003; Printer &ldquo;${result.name}&rdquo; selected.${nextStep}`;
+                                statusEl.className = "alert alert-info mt-2";
+                                statusEl.hidden = false;
+                            }
+                        }
+                    }
+                });
+            } else if (pairComplete) {
                 keepLooking = false;
                 turnOffTorch();
                 setTimeout(() => { window.location.href = "./apply.html"; }, 250);
             } else {
-                navigator.vibrate(100);
-                playScanSound(false);
+                updateScanStatus();
             }
-            updateScanStatus();
-            return;
-        }
-
-        // Try printer+slot tag
-        let printerSlotTag = PrinterSlotTag.tryParse(data);
-        if (printerSlotTag != null) {
-            lastScanTime = Date.now();
-            setActiveSlotIDs(JSON.stringify(printerSlotTag.ids));
-            scanState.slotScanned = true;
-            const pairComplete = scanState.filamentScanned;
-            navigator.vibrate(pairComplete ? [80, 50, 80] : 100);
-            playScanSound(pairComplete);
-            const statusEl = document.getElementById("scanStatus");
-            if (statusEl) {
-                statusEl.innerHTML = `Switching to printer "${printerSlotTag.name}"&hellip;`;
-                statusEl.className = "alert alert-info mt-2";
-                statusEl.hidden = false;
-            }
-            setActivePrinter(printerSlotTag.name).then(result => {
-                if (result.error) {
-                    if (statusEl) {
-                        statusEl.innerHTML = `Error switching printer: ${result.error}`;
-                        statusEl.className = "alert alert-danger mt-2";
-                    }
-                } else if (pairComplete) {
-                    keepLooking = false;
-                    turnOffTorch();
-                    setTimeout(() => { window.location.href = "./apply.html"; }, 250);
-                } else {
-                    if (statusEl) {
-                        statusEl.innerHTML = `&#10003; Printer &ldquo;${result.name}&rdquo; selected. Now scan a filament tag.`;
-                        statusEl.className = "alert alert-info mt-2";
-                        statusEl.hidden = false;
-                    }
-                }
-            });
-            return;
-        }
-
-        // Try printer tag
-        let printerTag = PrinterTag.tryParse(data);
-        if (printerTag != null) {
-            lastScanTime = Date.now();
-            navigator.vibrate(100);
-            playScanSound(false);
-            const statusEl = document.getElementById("scanStatus");
-            if (statusEl) {
-                statusEl.innerHTML = `Switching to printer "${printerTag.name}"&hellip;`;
-                statusEl.className = "alert alert-info mt-2";
-                statusEl.hidden = false;
-            }
-            setActivePrinter(printerTag.name).then(result => {
-                if (result.error) {
-                    if (statusEl) {
-                        statusEl.innerHTML = `Error switching printer: ${result.error}`;
-                        statusEl.className = "alert alert-danger mt-2";
-                    }
-                } else {
-                    if (statusEl) {
-                        statusEl.innerHTML = `&#10003; Switched to printer &ldquo;${result.name}&rdquo;.`;
-                        statusEl.className = "alert alert-success mt-2";
-                    }
-                }
-            });
             return;
         }
 
@@ -304,7 +271,7 @@ function handleURLParams() {
     if (urlParams.has('slotstring')) {
         console.log("Handling slotstring param");
         let slotTag = SlotTag.tryParse(urlParams.get('slotstring'));
-        if (slotTag != null) {
+        if (slotTag != null && slotTag.ids != null) {
             setActiveSlotIDs(JSON.stringify(slotTag.ids));
             scanState.slotScanned = true;
             updateScanStatus();

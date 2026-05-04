@@ -31,6 +31,8 @@
 
                 <p id="error"></p>
 
+                <p id="autoApplyStatus" class="mb-0"></p>
+
                 <div class="mb-2">
                     <button id="clearFilamentBtn" class="btn btn-outline-warning btn-sm me-1" hidden
                         onclick="clearActiveTag(); tag = null; updateFilamentDisplay();">
@@ -46,8 +48,7 @@
                     <h2>Scanned Slot</h2>
                     <div id="selectedSlotName" class="mb-2 text-muted small"></div>
                     <button id="autoApplyBtn" class="btn btn-success btn-lg mb-1">Apply to Scanned Slot</button>
-                    <p id="autoApplyStatus" class="mb-0"></p>
-                    <br><hr><br>
+                    <hr>
                 </div>
 
                 <h1>Scanned Tag</h1>
@@ -115,6 +116,7 @@
             const origText = applyBtn.innerText;
             applyBtn.innerText = "Applying, please wait 5-10 seconds...";
             applyBtn.disabled = true;
+
             let result = await setFilamentSlotFromTag(activeSlotIDsJSON);
             applyBtn.disabled = false;
             applyBtn.innerText = origText;
@@ -123,7 +125,19 @@
                 document.querySelector("#error").innerText = "Error: " + result.error;
                 return;
             }
+
+            // Brief success message
+            statusEl.style.transition = "";
+            statusEl.style.opacity = "1";
+            statusEl.style.color = "green";
+            statusEl.style.fontWeight = "bold";
             statusEl.innerText = "Applied successfully!";
+            setTimeout(() => {
+                statusEl.style.transition = "opacity 1s";
+                statusEl.style.opacity = "0";
+                setTimeout(() => { statusEl.innerText = ""; statusEl.style.opacity = "1"; statusEl.style.transition = ""; statusEl.style.color = ""; statusEl.style.fontWeight = ""; }, 1000);
+            }, 3000);
+
             postApplyCleanup();
             showFilamentSlots();
         }
