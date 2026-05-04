@@ -160,11 +160,16 @@ def serverStatus():
     }
     return jsonify(status)
 
+# The returns the status of the connection between the server and the printer
+# Bascially either a "status" message that indicates all is good, or an "error" message
 @app.route("/printerStatus")
 @basic_auth.required
 def printerStatus():
     return jsonify(_current_backend.getPrinterStatus())
 
+# This route is just to help troubleshoot connectivity during development
+# Half the time the printer doesn't even return a correct current state/activity, 
+# but UNKNOWN is a good indicator that there's a network-unrelated connection issue, like an invalid access code
 @app.route("/printerState")
 @basic_auth.required
 def printerState():

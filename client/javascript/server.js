@@ -220,10 +220,12 @@ async function getServerStatus() {
     return await serverGETjson("/serverStatus");
 }
 
+// Connection status (network between server and printer)
 async function getPrinterStatus() {
     return await serverGETjson("/printerStatus");
 }
 
+// What the printer is currently doing
 async function getPrinterState() {
     return await serverGETjson("/printerState");
 }
