@@ -1,0 +1,14 @@
+[
+  {
+    "name": "My First Printer",
+    "ip": "192.168.1.100",
+    "serial": "0123456789ABCDE",
+    "access_code": "98765432"
+  },
+  {
+    "name": "My Second Printer",
+    "ip": "192.168.1.101",
+    "serial": "0123456789ABCDF",
+    "access_code": "87654321"
+  }
+]
