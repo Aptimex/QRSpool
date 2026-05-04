@@ -178,13 +178,13 @@ function handleCodeData(data, tag=null) {
             activateTag(filamentTag);
             scanState.filamentScanned = true;
             if (scanState.slotScanned || getAlwaysJumpToApply()) {
-                navigator.vibrate([80, 50, 80]);
+                navigator.vibrate && navigator.vibrate([80, 50, 80]);
                 playScanSound(true);
                 keepLooking = false;
                 turnOffTorch();
                 setTimeout(() => { window.location.href = "./apply.html"; }, 250);
             } else {
-                navigator.vibrate(100);
+                navigator.vibrate && navigator.vibrate(100);
                 playScanSound(false);
             }
             updateScanStatus();
@@ -201,7 +201,7 @@ function handleCodeData(data, tag=null) {
             }
             
             const pairComplete = scanState.filamentScanned && scanState.slotScanned;
-            navigator.vibrate(pairComplete ? [80, 50, 80] : 100);
+            navigator.vibrate && navigator.vibrate(pairComplete ? [80, 50, 80] : 100);
             playScanSound(pairComplete);
             if (slotTag.printer_name != null && slotTag.printer_name !== getActivePrinterName()) {
                 const statusEl = document.getElementById("scanStatus");
