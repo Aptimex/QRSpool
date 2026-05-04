@@ -274,7 +274,14 @@ function handleURLParams() {
         if (slotTag != null && slotTag.ids != null) {
             setActiveSlotIDs(JSON.stringify(slotTag.ids));
             scanState.slotScanned = true;
-            updateScanStatus();
+            if (scanState.filamentScanned) {
+                updateScanStatus();
+                keepLooking = false;
+                turnOffTorch();
+                setTimeout(() => { window.location.href = "./apply.html"; }, 250);
+            } else {
+                updateScanStatus();
+            }
         } else {
             console.log("Invalid slotstring param");
         }
