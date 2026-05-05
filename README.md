@@ -6,361 +6,383 @@
 
 </div>
 
-Change your printer's multi-spool filament settings by scanning custom QR codes or NFC tags with your smartphone. Also supports [OpenSpool](https://openspool.io/) and [OpenTag3D](https://opentag3d.info/) NFC tags in Chrome on Android. [Quick demo video here.](https://www.youtube.com/watch?v=UtbaKgVyuF8). 
+Update your 3D printer's filament slot settings by scanning a QR code or NFC tag with your phone. Point your camera at a spool, tap a slot, and the printer updates instantly — no menus required. [Quick demo video.](https://www.youtube.com/watch?v=UtbaKgVyuF8)
 
-**This project is in Beta. It's fully functional for printers that use the old LAN mode, but please report any issues or bugs you encounter since I can't test every compatible printer or filament setting.**
-
-**Highly experimental support for newer Bambu printers that use LAN+DEV mode is also now provided.** Only tested on a P2S (firmware 01.02.00.00) with AMS 2 Pro (firmware 04.00.21.87). If you know of a python library that provides proper well-tested support for this new mode please let me know. 
+> **Beta:** Fully functional for Bambu Labs printers in LAN-only mode. Experimental support for newer LAN+DEV mode printers is also included (tested on a P2S with AMS 2 Pro). Please report any issues you encounter.
 
 ## Table of Contents
-- [User Experience](#user-experience)
-- [Getting Started](#getting-started)
-  - [Requirements](#requirements)
-  - [Backend Server Setup](#backend-server-setup)
-  - [Frontend Usage](#frontend-usage)
-  - [Optional: Frontend Local Hosting](#optional-frontend-local-hosting)
-- [QR Code Data Format](#qr-code-data-format)
-  - [Filament Tags](#filament-tags)
-  - [Slot Tags](#slot-tags)
-  - [Printing QR Codes](#printing-qr-codes)
-  - [Attaching QR Codes to Spools](#attaching-qr-codes-to-spools)
-  - [Bambu Printers Caveats](#bambu-printers-caveats)
-- [Using NFC Tags](#using-nfc-tags)
-  - [Using URL Parameters](#using-url-parameters)
+- [What It Does](#what-it-does)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+  - [Step 1: Set Up the Backend Server](#step-1-set-up-the-backend-server)
+  - [Step 2: Connect the Frontend](#step-2-connect-the-frontend)
+- [Scanning and Applying Filament](#scanning-and-applying-filament)
+- [Creating Tags](#creating-tags)
+  - [Filament QR Codes](#filament-qr-codes)
+  - [Slot QR Codes](#slot-qr-codes)
+  - [Printing Your Tags](#printing-your-tags)
+  - [Attaching Tags to Spools](#attaching-tags-to-spools)
+  - [NFC Tags](#nfc-tags)
+- [Bambu Printer Notes](#bambu-printer-notes)
+- [Technical Reference](#technical-reference)
+  - [URL Parameters](#url-parameters)
   - [OpenTag3D Field Length Limits](#opentag3d-field-length-limits)
-- [Technical Notes](#technical-notes)
-  - [QR Codes](#qr-codes)
-  - [Backend Server Endpoints](#backend-server-endpoints)
-    - [/serverStatus](#serverstatus)
-    - [/printerStatus](#printerstatus)
-    - [/slots](#slots)
-    - [/setFilament](#setfilament)
-    - [/reconnect](#reconnect)
+  - [Backend Server API](#backend-server-api)
   - [Backend Server Authentication](#backend-server-authentication)
-  - [Supported Printers](#supported-printers)
-- [Other Notes](#other-notes)
   - [3rd Party Dependencies](#3rd-party-dependencies)
 
-## User Experience
+---
 
-Here's a quick walkthrough of things you can use this project to do once you have everything setup:
+## What It Does
 
-You open a website on your phone. The website accesses your phone camera and scans the video feed in real-time for QR codes. Processing the video feed is handled 100% locally in your browser, no data is sent to the website server. 
+QRSpool has two components:
+
+- **Frontend** — A website ([qrspool.com](https://qrspool.com)) that uses your phone's camera or NFC to scan filament tags. All image processing happens locally in your browser; no camera data is ever sent to any server.
+- **Backend server** — A small server you run on your home network that bridges the website and your printer.
+
+The typical workflow:
+
+1. Scan the QR code on a filament spool with your phone camera
+2. See the filament info on screen alongside a list of your printer's available slots
+3. Tap a slot to apply those settings to the printer
 
 <img align="center" src="media/scanning.png">
-
-If you scan a QR code that represents a filament, the webpage changes and shows you information about the scanned filament tag and a list of available filament slots on your printer. You can then apply that filament to any slot with the press of a button. 
-
 <img align="center" src="media/apply.png">
 
-Or, instead of manually selecting a slot, you can scan another QR code that represents a specific printer slot, and the filament will be applied to it immediately. 
+You can also scan a QR code attached to a specific printer slot to skip the manual selection step — the filament is applied to that slot automatically.
 
-Instead of using printed QR codes, you can also write the filament or slot data to a cheap NFC NTAG tag using a special URL. Then you can tap the tag with your NFC-enabled phone (from any screen, no need to have the browser open) to open the website and have the data instantly loaded as if you had scanned a QR code. 
+If you have an Android phone with Chrome, you can use standardized NFC tags instead of QR codes — tap a tag to trigger the same workflow without opening your camera. Custom web URL NFC tags are available for everyone else and provide similar functionality. See the [NFC Tags](#nfc-tags) section for supported formats and how to write tags.
 
-If you are using Chrome on an Android phone, you can also use that browser to scan NTAG NFC tags that have the same text data as a QR code, without needing to rely on a special URL format. 
+---
 
-## Getting Started
+## Requirements
 
-This project consists of two mostly-decoupled components: 
-- A static website ("frontend") that uses client-side Javascript to access your webcam/camera, scan and parse QR codes and NFC tags to extract filament information, and provide a visual interface for applying scanned filament data to a slot on your multi-spool printer. An instance of this frontend, built directly from this repo and hosted on GitHub Pages, is available for free here: https://qrspool.com
-- A local API server ("backend") that acts as a communication bridge between your printer and browser, translating between standard REST API requests and whatever protocol your printer uses. You will need to run your own copy of the backend server on the same local network your printer is connected to. 
+- **Printer:** A Bambu Labs printer in LAN-only mode (other brands not yet supported)
+- **Server:** An always-on computer on the same network as your printer, able to run Docker *or* Python ≥3.10
+  - Needs a stable local IP address or hostname
+- **Phone:** Any modern smartphone with a camera
+  - Chrome is recommended; Firefox and Safari support the core scanning features with some limitations
 
-<div align="center">
+---
 
-![QRSpool Diagram](media/QRSpool.drawio.svg)
+## Quick Start
 
-</div>
+### Step 1: Set Up the Backend Server
 
-Currently I have implemented a Python (Flask) backend server that will communicate with Bambu Labs printers in LAN-only mode (LAN+Developer mode on newer printers/firmware is not yet supported) using the [bambulabs-api library](https://pypi.org/project/bambulabs-api/). Other servers could be written to support other printer brands without needing to change the frontend code. If you write such a server let me know so I can link to it. 
+The backend server translates data between the website and your printer. It runs on a computer on your home network.
 
-### Requirements
-- A Bambu Labs printer in LAN-only mode (LAN+Developer mode on newer printers/firmware is not yet supported); other brands may be supported in the future
-- A server (always-on computer) with a static IP or reliable DNS name on the same LAN as the printer
-    - Needs to be able to run either Docker or Python 3 (tested with >=3.10.12)
-- A smartphone with camera, or a computer with a webcam (a USB webcam with long cable is best)
-    - A modern web browser; Chrome is recommended, but Firefox and Safari also support the core features
+**Configure it** by going into `bambu-server/configs/`, copying `bambu_config.example.json` to `bambu_config.json`, and filling in your printer's IP address, serial number, access code, and a username and password for the server.
 
-### Backend Server Setup
-The backend server code is in the `bambu-server` folder. Configuration files are in the `configs` subfolder there. 
+**Run it with Docker (recommended):**
 
-First, copy or rename the `bambu_config.example.py` file to `bambu_config.py` and modify it with your printer settings and desired backend server access credentials. You can leave the credentials empty, but the server will still expect you to supply an empty username and password to access it (authentication can't be disabled). 
-
-Docker is the recommended way to run the server. The provided `Dockerfile` supports running the server either over HTTP or HTTPS, just uncomment the appropriate `CMD` line. Then from that folder run:
 ```bash
+cd bambu-server/
 sudo docker compose up --build -d
 ```
 
-HTTP vs HTTPS options: 
-- (Default, easiest) HTTPS with a self-signed cert, exposed directly to your LAN. Optionally obtain a real certificate and use that instead. 
-- (Recommended, more complex) HTTP, using a reverse proxy to add proper SSL/TLS, and expose that to your LAN. Reverse proxy setup instructions are outside the scope of this project, but [Caddy](https://caddyserver.com/) is a popular free solution that I personally like. 
-- (Not recommended) HTTP only.
+This starts the server on port 5123 using HTTPS with a self-signed certificate. Configuration files are mounted from the `configs/` folder and persist across container restarts.
 
-> [!WARNING]
-> If you expose a HTTP-only server to your network then any other devices on your network will be able to passively sniff your server credentials when you use the frontend. 
+<details>
+<summary>Running natively without Docker</summary>
 
-> [!WARNING]
-> The frontend and backend servers MUST be accessed using the same protocol, HTTP or HTTPS. If you mix protocols your browser will probably silently refuse to communicate with the backend server. 
-
-Docker will expose the API server on port 5123, but that can be customized by editing the provided docker files. The files in the `configs` subdirectory will be mounted into the container so they will persist across container restarts. 
-
-Want to run it natively instead of through Docker? Setup your config files and then run something like this:
 ```bash
+cd bambu-server/
 python3 -m pip install -r requirements.txt
 openssl req -new -x509 -keyout key.pem -out server.pem -days 3650 -nodes
-flask run --host=0.0.0.0 --cert=cert.pem --key=key.pem
+flask run --host=0.0.0.0 --cert=server.pem --key=key.pem
 ```
+</details>
 
-### Frontend Usage
-Navigate to https://qrspool.com/settings.html on your smartphone using Chrome. 
+> [!WARNING]
+> The frontend and backend must both use HTTP or both use HTTPS — mixing protocols will cause the browser to silently refuse communication.
 
-> [!TIP]
-> Firefox and Safari browsers will also work but have limited extra feature support; for example, Firefox doesn't support turning on the phone torch (LED) and Safari doesn't support vibrate on scan, and neither support NFC scanning. Other limitations may exist as well. 
+> [!WARNING]
+> Avoid HTTP-only mode. Any device on your network can passively sniff your server credentials in every request when you use HTTP without encryption.
 
-Fill out the URL and username+password for your backend server, save it, and validate it. You only need to do this once, unless your settings/network change.
+**HTTPS certificate options** (uncomment the appropriate `CMD` line in the Dockerfile):
+- **HTTP only** *(lowest friction to get started)*: No certificate needed. Use with `http://qrspool.com` (no `s` before the `:`) for the frontend. Upgrade to one of the HTTPS options below once you've confirmed everything works. Remember, HTTP exposes your credentials to anyone on the local network.
+- **Self-signed cert** *(easy setup, but some friction)*: Works immediately, but requires a one-time browser exception on every browser restart (see the frontend setup note below). Usable for development work, not recommend for long-term use. 
+- **Real certificate via reverse proxy** *(recommended for continued use)*: Use a tool like [Caddy](https://caddyserver.com/) to add proper TLS. A free [DuckDNS](https://www.duckdns.org/) subdomain gets you a real domain name to attach a certificate to. [Step-by-step instructions are included in the repo here.](bambu-server/REVERSE_PROXY.md)
+
+
+### Step 2: Connect the Frontend
+
+The frontend is already hosted at [qrspool.com](https://qrspool.com) (available over both HTTP and HTTPS) — no setup needed on your end.
+
+1. Open **https://qrspool.com/settings.html** on your phone in Chrome (use **http://qrspool.com/settings.html** if your backend is HTTP-only)
+2. Enter your backend server's URL (e.g. `https://192.168.1.100:5123`), username, and password
+3. Tap **Save**, then **Validate** to confirm the connection works
 
 > [!IMPORTANT]
-> If the backend server uses HTTPS with a self-signed certificate you may need to navigate to it each time your browser re-starts to accept the security risk; otherwise your browser will silently refuse to communicate with the backend server. For best results use a real certificate for a domain you control, such as a free [DuckDNS](https://www.duckdns.org/) subdomain. 
+> If your server uses a self-signed certificate, you'll need to open the server URL directly in your browser and accept the security warning. You may need to do this again each time your browser restarts. Using a real certificate with Caddy as described above avoids this nuisance entirely.
 
-Go to the Scan tab and grant access to your camera. If prompted, also grant access to NFC scanning (if desired), and to access devices on your local network (may be needed for communication with your locally-hosted backend server).
+Go to the **Scan** tab and grant camera and/or NFC access as prompted. Now you're ready to go!
 
-The frontend supports scanning QR codes that represent Filaments and Slots (data formats described in the next section). Scanning both types of tags (in either order) will automatically apply the scanned filament to the scanned slot without needing to manually select it on the Apply page. If you'd prefer to confirm before applying, there's a setting for that (and other related features) on the Settings page.
+> [!TIP]
+> Firefox and Safari also support QR scanning, but lack torch (flashlight) control, vibrate-on-scan, and NFC scanning. Chrome on Android is recommended for the full experience.
 
-Scanning a Slot tag is optional; you can also just scan a filament tag and then use the Apply page to manually select a slot to apply it to. 
+**Prefer to host the frontend yourself?** Serve the `client/` folder with any web server — for example, `python3 -m http.server` or the included `https-server.py` script. For fully offline use, download the Bootstrap and jsQR files referenced in each HTML file and update the references to point to your local copies.
 
-### Optional: Frontend Local Hosting
-Use any webserver of your choice to host the `client` folder. For example, `python3 -m http.server` provides a quick and easy development server for testing. There is also a python script in that folder for running a development HTTPS webserver. 
+---
 
-If you want fully-offline local hosting, you'll need to download the `Bootstrap` (CSS and Javascript) and `jsQR` files referenced in each HTML file and modify those references to point to the downloaded files. 
+## Scanning and Applying Filament
 
-## QR Code Data Format
-### Filament Tags
-This project supports filament QR codes with the following data format:
+From the **Scan** tab, point your camera at a filament or slot QR code. The page responds automatically when a tag is recognized.
+
+**Two tag types, one workflow:**
+- Scan a **filament tag** → goes to the Apply page showing filament info and available printer slots; tap any slot to apply
+- Scan a **slot tag** → stores that slot as the target; the next filament scan (or a previously scanned one) applies immediately with no manual selection
+
+Scanning both tag types in either order causes the filament to be applied to the slot automatically. If you'd prefer to confirm before applying, there's a setting for that on the Settings page.
+
+---
+
+## Creating Tags
+
+### Filament QR Codes
+
+Filament tags use a compact pipe-delimited format derived from [OpenSpool 1.0](https://openspool.io/rfid.html):
+
 ```
 OS1.0|TYPE|COLOR_HEX|BRAND|MIN_TEMP|MAX_TEMP
 ```
 
-`OS1.0` is a static string that helps the scanner identify valid QR codes matching this format so it doesn't waste time trying to process unrelated codes. 
+Example:
+```
+OS1.0|PLA Matte|FF5733|Bambu|190|230
+```
 
-The remaining fields, separated by the pipe (`|`) character, should be replaced with data related to the filament you want it to represent. They are approximately in order of importance/necessity for configuring a filament slot. The scanner will parse as many fields as are provided, allowing you to skip values (leave them empty, or omit them from the end) that you don't care about or that your printer doesn't support setting. 
+Fields are parsed left to right. You can omit fields from the right end, or leave individual fields empty, if you don't need them. `OS1.0` is the format identifier the scanner uses to recognize compatible codes.
 
-### Slot Tags
-Printer (AMS) slot QR codes use the following format:
+> [!NOTE]
+> For Bambu printers, `TYPE` and `BRAND` must exactly match a profile name from the Bambu Studio filament dropdown. See [Bambu Printer Notes](#bambu-printer-notes) for details and workarounds.
+
+### Slot QR Codes
+
+Slot tags identify a specific printer and/or AMS slot:
+
 ```
 SLOT|IDS|PRINTER_NAME
 ```
 
-`SLOT` is a static string, like `OS1.0` above. `IDS` is a text string (typically JSON) that identifies the target printer slot. `PRINTER_NAME` is the name of the printer to switch to before applying the filament. Both `IDS` and `PRINTER_NAME` are optional — either or both can be left blank — but at least one must be present. For Bambu printers with an AMS, a full tag looks like:
+Both `IDS` and `PRINTER_NAME` are optional, but at least one must be present for the tag to have any effect.
+
+Full tag (slot + printer switch):
 ```
 SLOT|{"amsID":0,"slotID":0}|My Printer
 ```
 
-A slot-only tag (no printer switching):
+Slot only (no printer switch):
 ```
 SLOT|{"amsID":0,"slotID":0}|
 ```
-- The trailing `|` is optional
 
-A printer-only tag (switches printer without specifying a slot):
+Printer switch only (no slot):
 ```
 SLOT||My Printer
 ```
 
-Only one printer can be "active" at a time, and switching printers takes several seconds server-side. For the fastest experience, always scan a filament tag before scanning a slot tag so you don't have to wait for the change in between scans. 
+To find the correct `ids` value for a slot, open the Apply page and expand the "↓ Show/Hide All Slot Info ↓" section under any slot — tap the value to copy it. Don't try to guess slot IDs; they can change with firmware updates or AMS hardware changes.
 
-The `ids` values for your slots are shown in the "↓ Show/Hide All Slot Info ↓" section of each slot on the Apply page. You can click/tap on it to copy it. 
+If you have multiple printers configured, only one printer is "active" at a time, and switching printers takes a few seconds. For the fastest workflow, scan the filament tag first, then the slot tag.
 
-> [!IMPORTANT]
-> Bambu AMS slot IDs seem to be zero-indexed, and the external spool has its own unique numbering. For best results just copy the `ids` value shown in the slot info rather than trying to guess the internal values for a specific slot. They could also change at any time with firmware updates or adding/removing AMS units. 
+### Printing Your Tags
 
-### Printing QR Codes
-I recommend [QR2STL](https://printer.tools/qrcode2stl) for generating printable QR codes (I have a forked copy [here](https://github.com/Aptimex/qrcode2stl) that you can easily self-host, with the delay-for-showing-ads functionality removed). It provides a lot of customization options (notably including different error correction levels) and a quick 3D preview of the STL.
+[QR2STL](https://qrcode2stl.printer.tools/) generates printable 3D QR codes. A [self-hostable fork](https://github.com/Aptimex/qrcode2stl) (with ads and wait times removed) is also available. [Here's a JSON file](qr2stl.json) with good starting values that you can import into the site. 
 
-I've had good luck generating QR codes with this data format that are 30x30mm, printed with a 0.4mm nozzle. Smaller QR codes may be difficult to print with enough detail to be decoded reliably unless you switch to a 0.2mm nozzle. [Here's an example](qr2stl.json) of some good starting settings for generating your own QR codes. 
+Tips for reliable scanning:
+- **30×30mm** with a 0.4mm nozzle works well; smaller dimensions need a 0.2mm nozzle
+- Use the **Arachne** wall generation method
+- Use the lowest error correction level, or else increase the tag size to compensate for a denser code
 
-When printing, use the Arachne wall generation method for best results. 
+### Attaching Tags to Spools
 
-### Attaching QR Codes to Spools
-I designed a custom clip that provides multiple options for attaching printed QR codes to filament spools for use with this project, [available here.](https://makerworld.com/en/models/1408538-filament-clip-for-qrspool-tags) It will work with models generated using QR2STL that have a 5mm "keychain" hole. 
+A custom clip with multiple attachment options for filament spools [is available on MakerWorld](https://makerworld.com/en/models/1408538-filament-clip-for-qrspool-tags). It's designed for QR2STL models with a 5mm keychain hole.
 
-### Bambu Printers Caveats
-Currently only the official filament profile names (Brand + Type, displayed in the Filament dropdown in Bambu Studio) are supported. Bambu uses static internal identifiers for each available profile that have to be mapped to the human-readable data supplied in a QR code. For example, you must specify `Bambu` as the Brand and `PLA Matte` as the Type in a QR code, with that exact spelling and case, in order for the server to identify the internal code (`GFA01`) assigned to that profile. The server combines the two fields (inserting a space in between them) and looks for a match in the `bambu-ams-codes.json` file to find the correct code to send to the printer. 
+### NFC Tags
 
-If a code match cannot be found, the server will replace the Brand with `Generic` and attempt to find a match again. 
+**On Android with Chrome**, the Scan and Apply pages show a button to enable NFC scanning. Once enabled, tapping an NFC tag works just like scanning a QR code with the camera.
 
-If that fails, the server will check to see if the Type field contains a known filament code (in the `bambu-ams-codes.json` file) and use that directly. 
+Supported NFC formats:
+- Tags containing the same plain text as a QR code
+- [OpenSpool](https://openspool.io/rfid.html#protocol) tags
+- [OpenTag3D](https://opentag3d.info/spec) tags — see [OpenTag3D Field Length Limits](#opentag3d-field-length-limits) for important notes if you're using OpenTag3D with a Bambu printer
 
-Alternatively, if the `BRAND` field contains the string `RAWCODE` then the server will just assume that the `TYPE` field contains a custom filament code and use it directly. This allows you to use [custom filament profile saved to your AMS](https://forum.bambulab.com/t/how-to-add-custom-filaments-so-you-can-select-them-in-the-ams/52140) without having to edit the JSON code file. However, I recommend just editing the JSON code file instead since that will be a lot easier to update than printed QR codes if you ever have to reset your AMS or get a new one or something. 
+To write tags, use the [OpenTag3D Make tab](https://opentag3d.info/make), or a generic app like [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter).
 
-> [!NOTE]
-> In my own testing the printer/AMS just silently ignored requests that contained unrecognized codes. So this *should* be safe to play around with, but you ultimately do so at your own risk. 
+**On iOS (and any phone without in-browser NFC):** Use URL-based NFC tags. A tag containing a URL like this will open the site with filament data pre-loaded when tapped:
 
-If all those tests fail to identify an appropriate code, the server will return an error. 
-
-From my testing Bambu printers seem to ignore any temperature values you specify and just use the ones in the profile settings associated with the code; only the filament code and color seem to matter. So you can completely omit the temperature fields in your QR codes if you want. 
-
-Currently the server will only return information about AMS slots that have filament loaded into them (plus the external spool). This means if you load the Apply page in the middle of changing out a spool you won't be able to apply a scanned code to that slot until you actually insert the filament into the inlet. 
-
-Printers connected to the cloud can still be queried for filament data even after Bambu's recent authorization changes. However, attempting to apply filament changes to them will silently fail. 
-
-## Using NFC Tags
-The Chrome browser on Android has support for reading NFC tags if your phone has NFC hardware (most do). While using a supported browser the Scan and Apply pages will present a button at the top to enable NFC, which will prompt the browser to ask you for permission to enable that feature. Once enabled you can scan [OpenSpool](https://openspool.io/rfid.html#protocol) or [OpenTag3D](https://opentag3d.info/spec) NFC tags to get filament data that you can then apply, just like scanning QR codes with your phone. Alternatively, you can create NFC tags that contain the same text data as the QR codes. 
-
-For iOS users, see the Using URL Parameters section below for an option that should work on iPhones. 
-
-Currently this project doesn't support writing NFC tags through the website. I recommend using the [OpenTag3D site's Make tab](https://opentag3d.info/make) to easily write tags for Android users. For a more generic method, [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter) apps can be used to write custom data to tags. Similar apps may be available for iOS.
-
-### Using URL Parameters
-You can pass filament data to the scan page (the website root) using URL parameters. It accepts the following formats (and checks for them in this order):
-- `?qrstring=X`, where `X` is the same data string that you would write to a QR code. 
-- `?osjson=X`, where `X` is the JSON string that you would write to an OpenSpool NFC tag (with no line breaks). 
-- The 6 OpenSpool filament data keys as individual parameters. For example, `?type=A&color_hex=B&brand=C&min_temp=D&max_temp=E`. The presence of the `type` key is required to trigger processing this format. 
-- `?slotstring=X`, where `X` is the same data string that you would write to a slot QR code (e.g. `SLOT|{"amsID":0,"slotID":1}|` or `SLOT|{"amsID":0,"slotID":1}|My Printer`). This stores the slot as the active slot tag, equivalent to scanning a slot QR code with the camera.
-
-This allows you to create NFC tags with URL targets, which most modern smartphones will process natively without the need to have a specific app open. For example, you could create a NFC tag containing a link like this: 
 ```
-https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230
+https://qrspool.com?qrstring=OS1.0|PLA|FF5733|Bambu|190|230
 ```
-When you tap that tag with your phone it should immediately open that link in a browser (probably asking you for confirmation first), parse the tag data in the URL, and take you to the Apply screen with the new tag data ready to apply. 
 
-If you want to, you can also combine a filament parameter with a slot parameter in the same URL to pre-load both at once:
+You can even combine filament and slot data in a single URL to auto-apply on tap:
+
 ```
-https://qrspool.com?qrstring=OS1.0|PLA|123456|Bambu|190|230&slotstring=SLOT|{"amsID":0,"slotID":1}|
+https://qrspool.com?qrstring=OS1.0|PLA|FF5733|Bambu|190|230&slotstring=SLOT|{"amsID":0,"slotID":1}|
 ```
 
 > [!TIP]
-> You can set multiple NDEF records in a NFC tag. Most smartphones will natively only try to process the first record, but most dedicated readers (including qrspool.com) will try to process all records. You can set the first record to be a URL link and the second record to be a text record (with OpenSpool JSON or a QR data string) for maximum compatibility. 
+> NFC tags support multiple NDEF records. Set the first to a URL (for native phone handling) and the second to a plain-text QR string, or one of the other supported formats. Most phone scans will only process the first record; qrspool.com will try all records, giving you compatibility with both approaches across all phones in one tag.
+
+See [URL Parameters](#url-parameters) for additional supported URL formats.
+
+---
+
+## Bambu Printer Notes
+
+**Filament code matching:** `BRAND` and `TYPE` in a tag must match a profile name from Bambu Studio exactly (e.g. `Bambu` + `PLA Matte`). The server combines them and looks up the internal code (e.g. `GFA01`) in `bambu-ams-codes.json`.
+
+If an exact match fails, the server tries these fallbacks in order:
+1. Replace the brand with `Generic` and search again
+2. Treat the `TYPE` field directly as a filament code
+3. If `BRAND` is `RAWCODE`, use `TYPE` as the code verbatim — useful for [custom AMS profiles](https://forum.bambulab.com/t/how-to-add-custom-filaments-so-you-can-select-them-in-the-ams/52140)
+
+If all fallbacks fail, the server returns an error. In testing, unrecognized codes were silently ignored by the printer and never caused any problems.
+
+**Temperature fields** are generally ignored by Bambu printers — the profile defaults are used instead. You can safely omit `MIN_TEMP` and `MAX_TEMP` from your tags.
+
+**Empty slot limitation:** Currently-empty slots can't have their filament settings changed. Make sure filemant is loaded before trying to apply a tag to the slot. 
+
+**Cloud-connected printers:** Slot data can be read, but applying filament changes will silently fail. LAN-only mode (LAN+DEV on newer printers/firmware) is required for writes.
+
+**Tested hardware:** A1 (firmware 01.04.00.00) with AMS Lite (firmware 00.00.07.94). Should work with any printer and AMS supported by [bambulabs-api](https://pypi.org/project/bambulabs-api/).
+
+**Experimental LAN+DEV support:** Only tested on a P2S. If you know of a Python library that has proper support for this mode let me know, the current support is fully custom and based on limited traffic analysis. 
+
+---
+
+## Technical Reference
+
+This section covers implementation details for developers who want to build compatible servers or clients.
+
+QRSpool's frontend and backend are intentionally decoupled: the frontend handles all QR/NFC parsing and generates standard REST requests; the backend translates those into whatever protocol a given printer needs. A server for a different printer brand could be built without changing the frontend at all.
+
+### URL Parameters
+
+The scan page accepts pre-loaded data via URL parameters, checked in this order:
+
+| Parameter | Format |
+|---|---|
+| `?qrstring=X` | Same string as a filament QR code |
+| `?osjson=X` | OpenSpool JSON string (no line breaks) |
+| `?type=A&color_hex=B&brand=C&min_temp=D&max_temp=E` | Individual OpenSpool fields (`type` key required) |
+| `?slotstring=X` | Same string as a slot QR code |
 
 ### OpenTag3D Field Length Limits
-The OpenTag3D spec limits the Material Name (type) field to 5 characters and the Modifier field to 5 characters. Many Bambu filament names exceed these limits. When creating OpenTag3D tags you have several options when a value doesn't fit:
 
-1. For most filament Names and Modifiers, you can just truncate it to 5 characters. However, if the server detects the truncation matches more than 1 possible expansion, it will return an error. 
-2. Use a recognized abbreviation. The server knows common abbreviations for longer terms. For example, `Supp` expands to `Support`, `HiSpd` to `High Speed`, and `Tgh+` to `Tough+`. See `bambu-server/configs/type-abbreviations.json` and `modifier-abbreviations.json` for the full list. You can also add your own to these files on your server, or submit a PR to add more to this repo. 
-3. Put the full Name and/or Modifier string in the optional Color Name field and leave their dedicated fields blank. The server will make a best-effort attempt to match the missing fields from the longer Color Name field.
-4. Specify `RAWCODE` for the filament Name and put the appropriate code from the `bambu-server/configs/bambu-ams-codes.json` file in the Type field. 
+OpenTag3D limits the Material Name and Modifier fields to 5 characters, which many Bambu filament names exceed. Options when a value doesn't fit:
 
-# Technical Notes
-This section provides implementation details about the project architecture for anyone who wants to create an interoperable server or client. Most users can stop reading here. 
+1. **Truncate to 5 characters** — works if only one possible expansion exists; the server returns an error if the truncation is ambiguous
+2. **Use a recognized abbreviation** — e.g. `Supp` → `Support`, `HiSpd` → `High Speed`, `Tgh+` → `Tough+`; see `bambu-server/configs/type-abbreviations.json` and `modifier-abbreviations.json` for the full list, and add your own or submit a PR
+3. **Use the Color Name field** — put the full name there and leave the dedicated fields blank; the server will attempt to match it
+4. **Use RAWCODE** — set Name to `RAWCODE` and put the code from `bambu-ams-codes.json` in the Type field
 
-## QR Codes
+### Backend Server API
 
-This project uses the [OpenSpool protocol data format](https://openspool.io/rfid.html), modified for minimal size to allow the QR Code to be as small and compact as possible. OpenSpool 1.0 defines a JSON format with 6 values:
-- protocol 
-- version 
-- type 
-- color_hex 
-- brand
-- min_temp
-- max_temp
+Data in `<>` should be replaced with appropriate values; everything else is a literal string.
 
-These values have been converted into the string format described above, which can be stored much more compactly in a QR code than JSON data.
+#### GET /serverStatus *(unauthenticated)*
 
-## Backend Server Endpoints
-The frontend (web client) is responsible for parsing QR codes, extracting filament data from them, and sending that data in a specific format to a separate server that handles passing it off to your printer. Since different printer brands have different APIs, this modular separation makes developing servers that can interact with different printers much easier since the frontend code can (theoretically) be re-used without any changes. 
+Returns server status and authentication information. This is the endpoint hit when the user validates their server settings.
 
-Unless otherwise stated, data in `<>` brackets should be replaced with an appropriate string, while everything else is a string literal. 
-
-The server should expose the following API endpoints:
-
-###  /serverStatus
-This should accept unauthenticated GET requests and return this JSON-formatted response indicating that the server is up and running (regardless of printer status), plus information about server authentication requirements: 
 ```json
 {
     "status": "running",
     "authRequired": "<true|false>",
-    "authCorrect": "<true|false>"
+    "authCorrect": "<true|false>",
+    "serverVersion": "<SemVer version string>"
 }
 ```
+- `authRequired`: whether other endpoints enforce Basic Auth. 
+- `authCorrect`: whether the credentials in this request (optional here) are valid.
+- `serverVersion`: allows the frontend to detect when the backend is outdated and alert the user, without requiring any network-based update checks. 
 
-`authRequired` indicates whether requests to all other endpoints require/enforce Basic Auth. `authCorrect` indicates whether the Basic Auth credentials provided in the request (if any; they're optional for this endpoint) are correct. 
+#### GET /printerStatus
 
-This is the endpoint that gets hit when the user validates the server information they saved in the frontend. 
-
-### /printerStatus
-This should accept GET requests and return this JSON response, where `<statusMessage>` is some status message obtained from the printer, or a message indicating a communication error between the server and printer: 
+On success:
 ```json
 {
     "status": "<statusMessage>"
 }
 ```
 
-### /slots
-This should accept GET requests and return JSON data about the printer's available filament slots. In particular, it should provide everything the frontend needs to help the user generate a request to the `setFilament` endpoint using the data from a QR code. 
+On connection failure:
+```json
+{
+    "error": "<errorMessage>"
+}
+```
 
-This endpoint should return data with this JSON format:
+#### GET /slots
+
+Returns available filament slots. `ids` and `displayID` are mandatory per slot; all others are optional.
+
 ```json
 {
     "slots": [
         {
-            "ids": {
-                "<OPAQUE>": "<OPAQUE>"
-            },
+            "ids": { "<OPAQUE>": "<OPAQUE>" },
             "displayID": "<value>",
             "<dk1>": "<value>",
-            "<dk2>": "<value>",
-            "<dk3>": "<value>",
-            "<otherKey>": "<value>",
-        },
+            "<dk2>": "<value>"
+        }
     ],
-    "displayKeys": ["<dk1>", "<dk2>", "<dk3>"],
-    "colorHexKeys": ["<dk3>"]
+    "displayKeys": ["<dk1>", "<dk2>"],
+    "colorHexKeys": ["<dk2>"]
 }
 ```
-- `slots` is a list of `slot` objects representing filament slots available on the printer. The `ids` and `displayID` keys are mandatory, the rest are optional. 
-- `ids` is an opaque object with data that uniquely identifies the slot on this printer. The frontend supplies this exact object back to the server to identify this slot when requesting to modify its filament settings. This object must be able to be JSON-stringified and then parsed back to a JavaScript object without any information loss. 
-- `displayID` is a string that will be displayed to help the user identify the slot from a list of available slots; where possible, this value should correspond to identifying physical markings on the filament slots. 
-- `displayKeys` is a list of keys present in every `slot` object that should be displayed by default on the frontend when the user is selecting a slot to apply filament settings to. This list should ideally include as many of the fields that are present in the QR codes as possible, minus the tag headers (e.g., `OS1.0`). 
-- `colorHexKeys` is a list of keys in a `slot` object whose values should be interpreted by the client as a 6-digit hex color code and displayed to the user as that color. 
 
-###  /setFilament
-This should accept POST or PUT requests containing JSON data that describes a new filament to be configured in a specific filament slot:
+- `ids` — opaque object uniquely identifying the slot; the frontend echoes it back in `/setFilament` requests unchanged
+- `displayID` — human-readable identifier that corresponds to physical markings on the printer
+- `displayKeys` — important slot fields to display by default in the slot selection UI
+- `colorHexKeys` — fields whose values are 6-digit hex color codes and should be rendered as colors in the UI
+
+#### POST /setFilament
+
 ```json
 {
-    "ids": {
-        "OPAQUE": "OPAQUE"
-    },
+    "ids": { "OPAQUE": "OPAQUE" },
     "type": "<value>",
     "colorHex": "<value>",
     "brand": "<value>",
     "minTemp": "<value>",
-    "maxTemp": "<value>",
+    "maxTemp": "<value>"
 }
 ```
 
-The `ids` value will be copied from a response returned by the `/slots` endpoint to identify the target slot. The remaining values mirror the QR code data format. These keys may have empty string values if the associated data is not available (for example, because some fields were omitted from a scanned QR code). 
+Field values may be empty strings if data was omitted from the scanned tag. The server must silently ignore unknown keys, and may support more than these. Recommended optional fields for maximum compatibility:
 
-The server must gracefully ignore any extra or unknown JSON keys it receives, but may support other optional keys. The following are recommended optional values a server may want to accept to maximize compatibility with current filament tag standards and potential future printer protocol improvements:
 ```json
 {
     "colorName": "<value>",
-    "bedTemp": "<value>",
+    "bedTemp": "<value>"
 }
 ```
 
-###  /reconnect
-This should accept a GET request with no parameters, and take necessary actions to reset the connection between the server and printer. This is intended to be used as an easy quick-fix option if things aren't working as expected. 
+#### GET /reconnect
 
-## Backend Server Authentication
-The server may optionally enforce a standard [Basic Authentication scheme](https://en.wikipedia.org/wiki/Basic_access_authentication) with username and password, separate from any authentication that has to happen between the server and printer. This is intended to provide some baseline protection against unauthorized configuration changes being submitted through the backend server, for example if the backend is reachable by guests on your WiFi network. 
+Resets the connection between server and printer. No parameters. Intended as a quick-fix when things aren't working as expected.
 
-> [!IMPORTANT]
-> This provides very minimal protection if the server uses no encryption (HTTP), moderate protection if the server uses encryption (HTTPS) with a self-signed certificate, and best protection if the server uses encryption with a proper (not self-signed) certificate. However, in all cases this is still vulnerable to brute-force attacks, so pick a strong secret and don't expose the server to the Internet. 
+### Backend Server Authentication
 
-The server may provide a configuration option to disable authentication; but this option is not implemented in the current Bambu server, and authentication is always required. 
+The server uses standard [HTTP Basic Authentication](https://en.wikipedia.org/wiki/Basic_access_authentication). All endpoints except `/serverStatus` require:
 
-To authenticate, the client provides a standard Basic Authentication header in all API requests, where `<cred>` is the base64-encoded `<AUTH_USER>:<AUTH_PASS>` string: 
 ```
-Authorization: Basic <cred>
+Authorization: Basic <base64(username:password)>
 ```
 
-The username and password supplied by the client can be set by the user in the `Settings` page, and are stored in the client's local storage, just like the server URL. They are NOT stored in a cookie in order to help prevent accidental exposure to the client website server. 
+Credentials and settings are stored in the browser's `localStorage`, not cookies, to avoid accidental exposure to the frontend's website server.
 
-## Supported Printers
-I have only tested the backend server with my A1 running firmware version 01.04.00.00, with an AMS Lite running firmware version 00.00.07.94. But it should work with any printer and AMS supported by the [bambulabs-api](https://pypi.org/project/bambulabs-api/) library. 
+Security levels by configuration:
+- **HTTP only** — minimal protection; credentials can be passively sniffed on the local network
+- **HTTPS with self-signed cert** — moderate protection
+- **HTTPS with real cert** — best protection
 
-# Other Notes
+In all cases the server is vulnerable to brute-force authentication attacks; so use a strong password and don't expose the server to the Internet.
 
-## 3rd Party Dependencies
-- [jsQR](https://github.com/cozmo/jsQR) is used by the frontend to extract QR code data from the camera feed
-- [Bootstrap](https://getbootstrap.com/) is used by frontend for UI/UX enhancements
-- [bambulabs-api](https://pypi.org/project/bambulabs-api/) is used by the backend server to interact with Bambu printers
-    - This project requires bambulabs-api version 2.6.2 or later due to a bug in previous versions limiting the types of filament settings that could be applied
+### 3rd Party Dependencies
+
+- [jsQR](https://github.com/cozmo/jsQR) — QR code decoding from the camera feed (frontend)
+- [Bootstrap](https://getbootstrap.com/) — UI framework (frontend)
+- [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2 — Bambu printer communication (backend) for LAN-only printers
