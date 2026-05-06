@@ -19,10 +19,10 @@ If you can't accomplish this, an additional script is provided that will periodi
 ## Step 1: Get a DuckDNS domain
 
 1. Go to [duckdns.org](https://www.duckdns.org/) and sign in
-2. Create a free subdomain. For example, `myserver.duckdns.org`
+2. Create a free subdomain. For example, `yourname.duckdns.org`
 3. Copy your **token** from the top of the page, you'll need it in several places later
 
-On the DuckDNS website, set the subdomain's IP to your backend server's **local IP address** (e.g. `192.168.1.100`). This ensures your phone connects to the right machine on your LAN. If you also want remote access from outside your network, you can use your external IP instead and forward port 443 on your router (dangerous, and not recommended unless you know what you're doing).
+On the DuckDNS website, set the subdomain's IP to your backend server's **local IP address** (e.g. `192.168.1.100`). This ensures your phone connects to the right machine on your LAN.
 
 ## Step 2: Create the Caddy files
 
@@ -57,11 +57,7 @@ Caddy reads the token from the `DUCKDNS_TOKEN` environment variable set in the c
 
 ## Step 3: Create the Caddy-enabled compose file
 
-Create `bambu-server/docker-compose.caddy.yml`. This is a drop-in replacement for the default `docker-compose.yml` — keep the original intact as a fallback.
-
-Replace `yourname` and `your-duckdns-token` with your actual values.
-
-**`bambu-server/docker-compose.caddy.yml`:**
+Create `bambu-server/docker-compose.caddy.yml`. This is a drop-in replacement for the default `docker-compose.yml`, but keep the original intact as a fallback. Replace `your-duckdns-token` with your actual token:
 
 ```yaml
 services:
@@ -99,7 +95,7 @@ volumes:
 
 If the machine's IP is stable (static assignment or DHCP reservation), skip this. You already set the correct IP on the DuckDNS website in Step 1.
 
-If you can't obtain a static LAN IP for your backend server, modify and run this `duckdns-local.sh` script via cron to keep your DuckDNS subdomain updated with the server's current local IP:
+If you can't obtain a static LAN IP for your backend server, fill out and run this `duckdns-local.sh` script via cron to keep your DuckDNS subdomain updated with the server's current local IP:
 ```bash
 #!/bin/bash
 # Updates DuckDNS with this machine's current local LAN IP.
@@ -136,36 +132,24 @@ crontab -e
 # */5 * * * * /path/to/bambu-server/duckdns-local.sh
 ```
 
-If you know what you're doing and are exposing the server to the Internet, you can instead add this to your `docker-compose.caddy.yml` file to dynamically tie your subdomain to your public-facing IP:
-```yaml
-  duckdns:
-    image: lscr.io/linuxserver/duckdns:latest
-    container_name: duckdns-qrspool
-    restart: unless-stopped
-    environment:
-      - SUBDOMAINS=yourname
-      - TOKEN=your-duckdns-token
-```
-
-## Step 4: Start the stack
+## Step 4: Start the containers
 
 ```bash
 cd bambu-server/
 sudo docker compose -f docker-compose.caddy.yml up --build -d
 ```
 
-On first start, Docker builds the custom Caddy image (takes a minute or two), then Caddy contacts Let's Encrypt via the DuckDNS API to issue the certificate. To confirm it succeeded:
-
+On first start, Docker builds the custom Caddy image, which takes a couple minutes. Then Caddy contacts Let's Encrypt via the DuckDNS API to acquire the certificate, which can take up to 5 more minutes. To confirm it succeeded:
 ```bash
 sudo docker logs caddy-qrspool
 ```
 
-Look for a line like `certificate obtained successfully`. Subsequent starts skip certificate issuance (it's cached in the `caddy_data` volume) and are nearly instant.
+Look for a line like `certificate obtained successfully`. It may display several errors initially while waiting for the DNS changes to propogate. Subsequent starts will usually be much faster since they can skip the initial certificate issuance step. 
 
 ## Step 5: Update QRSpool settings
 
 1. Open `https://qrspool.com/settings.html` on your phone
-2. Set the server URL to `https://yourname.duckdns.org` (no port number — standard HTTPS port 443)
+2. Set the server URL to `https://yourname.duckdns.org`
 3. Tap **Save**, then **Validate**
 
 ## Troubleshooting

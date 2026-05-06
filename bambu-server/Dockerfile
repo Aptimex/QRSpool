@@ -13,7 +13,7 @@ RUN mkdir /certs && openssl req -new -x509 -subj "/CN=bambu-api-server.local" -k
 ENV PYTHONUNBUFFERED=1
 
 # HTTPS listening on port 5123
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5123", "--cert=/certs/server.crt", "--key=/certs/server.key"]
+#CMD ["flask", "run", "--host=0.0.0.0", "--port=5123", "--cert=/certs/server.crt", "--key=/certs/server.key"]
 
 # HTTP lsitening on port 5123
-#CMD ["flask", "run", "--host=0.0.0.0", "--port=5123"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5123"]

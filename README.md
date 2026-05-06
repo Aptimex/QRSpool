@@ -6,9 +6,9 @@
 
 </div>
 
-Update your 3D printer's filament slot settings by scanning a QR code or NFC tag with your phone. Point your camera at a spool, tap a slot, and the printer updates instantly — no menus required. [Quick demo video.](https://www.youtube.com/watch?v=UtbaKgVyuF8)
+Update your 3D printer's filament slot settings by scanning a printed QR code or NFC tag with your phone. Point your camera at a filament code, the a slot code, and the printer updates its AMS settings instantly.
 
-> **Beta:** Fully functional for Bambu Labs printers in LAN-only mode. Experimental support for newer LAN+DEV mode printers is also included (tested on a P2S with AMS 2 Pro). Please report any issues you encounter.
+> **Beta:** Fully functional for Bambu Labs printers in LAN-only mode, with experimental support for printers that use the newer LAN+DEV mode (tested on a P2S with AMS 2 Pro). Please report any issues you encounter.
 
 ## Table of Contents
 - [What It Does](#what-it-does)
@@ -42,24 +42,27 @@ QRSpool has two components:
 
 The typical workflow:
 
-1. Scan the QR code on a filament spool with your phone camera
-2. See the filament info on screen alongside a list of your printer's available slots
-3. Tap a slot to apply those settings to the printer
+1. 3D print some QR codes or write some NFC tags* and attach them to your filament spools and AMS slots
+2. Scan the QR code (or tap an NFC tag) on a filament spool with your phone camera, right from your browser
+3. Scan the QR code (or tap an NFC tag) on the slot you want the filament settings applied to
+4. View and verify your printer's new AMS slot setting right from your phone
+
+[Quick demo video.](https://www.youtube.com/watch?v=UtbaKgVyuF8)
 
 <img align="center" src="media/scanning.png">
 <img align="center" src="media/apply.png">
 
-You can also scan a QR code attached to a specific printer slot to skip the manual selection step — the filament is applied to that slot automatically.
+You can also scan just a filament code/tag and then manually select a slot to apply it to on your phone. 
 
-If you have an Android phone with Chrome, you can use standardized NFC tags instead of QR codes — tap a tag to trigger the same workflow without opening your camera. Custom web URL NFC tags are available for everyone else and provide similar functionality. See the [NFC Tags](#nfc-tags) section for supported formats and how to write tags.
+*If you have an Android phone with Chrome, you can use standardized NFC tags instead of QR codes. For everyone else, custom web URL NFC tags can be used and provide similar functionality, but may require extra confirmation steps each time you scan a tag. See the [NFC Tags](#nfc-tags) section for info about supported formats and how to write tags.
 
 ---
 
 ## Requirements
 
-- **Printer:** A Bambu Labs printer in LAN-only mode (other brands not yet supported)
-- **Server:** An always-on computer on the same network as your printer, able to run Docker *or* Python ≥3.10
-  - Needs a stable local IP address or hostname
+- **Printer:** A Bambu Labs printer in LAN-only mode, or LAN+DEV mode for newer printers/firmware (other printer brands not currently supported)
+- **Server:** An always-on computer (server) on the same network as your printer, able to run either Docker (recommended) or Python ≥3.10
+  - Will work best if it has a stable local IP address or DNS name
 - **Phone:** Any modern smartphone with a camera
   - Chrome is recommended; Firefox and Safari support the core scanning features with some limitations
 
@@ -71,16 +74,21 @@ If you have an Android phone with Chrome, you can use standardized NFC tags inst
 
 The backend server translates data between the website and your printer. It runs on a computer on your home network.
 
-**Configure it** by going into `bambu-server/configs/`, copying `bambu_config.example.json` to `bambu_config.json`, and filling in your printer's IP address, serial number, access code, and a username and password for the server.
+```bash
+git clone https://github.com/Aptimex/QRSpool.git
+cd QRSpool/bambu-server
+cp configs/bambu_config.example.json configs/bambu_config.json
+```
+
+Now edit `configs/bambu_config.json` and fill in your printer's IP address, serial number, and access code, and set a username and password for the server.
 
 **Run it with Docker (recommended):**
 
 ```bash
-cd bambu-server/
 sudo docker compose up --build -d
 ```
 
-This starts the server on port 5123 using HTTPS with a self-signed certificate. Configuration files are mounted from the `configs/` folder and persist across container restarts.
+This starts the server on port 5123 using HTTP only. Configuration files are mounted from the `configs/` folder and persist across container restarts. If you ever change a config, just run `sudo docker compose restart` to reload them. 
 
 <details>
 <summary>Running natively without Docker</summary>
@@ -89,7 +97,7 @@ This starts the server on port 5123 using HTTPS with a self-signed certificate. 
 cd bambu-server/
 python3 -m pip install -r requirements.txt
 openssl req -new -x509 -keyout key.pem -out server.pem -days 3650 -nodes
-flask run --host=0.0.0.0 --cert=server.pem --key=key.pem
+flask run --host=0.0.0.0 --port=5123
 ```
 </details>
 
@@ -97,17 +105,16 @@ flask run --host=0.0.0.0 --cert=server.pem --key=key.pem
 > The frontend and backend must both use HTTP or both use HTTPS — mixing protocols will cause the browser to silently refuse communication.
 
 > [!WARNING]
-> Avoid HTTP-only mode. Any device on your network can passively sniff your server credentials in every request when you use HTTP without encryption.
+> HTTP-only mode should only be used for testing out the project, unless you fully trust the security of your local network. Any device on your network can passively sniff your server credentials in every request when you use HTTP instead of HTTPS. 
 
 **HTTPS certificate options** (uncomment the appropriate `CMD` line in the Dockerfile):
-- **HTTP only** *(lowest friction to get started)*: No certificate needed. Use with `http://qrspool.com` (no `s` before the `:`) for the frontend. Upgrade to one of the HTTPS options below once you've confirmed everything works. Remember, HTTP exposes your credentials to anyone on the local network.
-- **Self-signed cert** *(easy setup, but some friction)*: Works immediately, but requires a one-time browser exception on every browser restart (see the frontend setup note below). Usable for development work, not recommend for long-term use. 
-- **Real certificate via reverse proxy** *(recommended for continued use)*: Use a tool like [Caddy](https://caddyserver.com/) to add proper TLS. A free [DuckDNS](https://www.duckdns.org/) subdomain gets you a real domain name to attach a certificate to. [Step-by-step instructions are included in the repo here.](bambu-server/REVERSE_PROXY.md)
-
+- **HTTP only** *(lowest friction to get started)*: No certificate needed. Use with `http://qrspool.com` (no `s` before the `:`) for the frontend. Upgrade to one of the HTTPS options below once you've decided you want to keep using this project. Remember, HTTP exposes your credentials to anyone on the local network.
+- **Real certificate via reverse proxy** *(recommended for continued use)*: Use a tool like [Caddy](https://caddyserver.com/) to add proper TLS. A free [DuckDNS](https://www.duckdns.org/) subdomain gets you a real domain name to attach a certificate to. Step-by-step instructions for this kind of setup are [included in the repo here.](bambu-server/REVERSE_PROXY.md)
+- **Self-signed cert** *(only use for dev work)*: Works immediately, but requires a one-time browser exception confirmation on every browser restart, which is really annoying (see the frontend setup note below). Usable for development work, not recommend for long-term use. 
 
 ### Step 2: Connect the Frontend
 
-The frontend is already hosted at [qrspool.com](https://qrspool.com) (available over both HTTP and HTTPS) — no setup needed on your end.
+The frontend is already hosted at [qrspool.com](https://qrspool.com) (available over both HTTP and HTTPS) so you don't need to do any setup for that part on your end!
 
 1. Open **https://qrspool.com/settings.html** on your phone in Chrome (use **http://qrspool.com/settings.html** if your backend is HTTP-only)
 2. Enter your backend server's URL (e.g. `https://192.168.1.100:5123`), username, and password
@@ -121,7 +128,7 @@ Go to the **Scan** tab and grant camera and/or NFC access as prompted. Now you'r
 > [!TIP]
 > Firefox and Safari also support QR scanning, but lack torch (flashlight) control, vibrate-on-scan, and NFC scanning. Chrome on Android is recommended for the full experience.
 
-**Prefer to host the frontend yourself?** Serve the `client/` folder with any web server — for example, `python3 -m http.server` or the included `https-server.py` script. For fully offline use, download the Bootstrap and jsQR files referenced in each HTML file and update the references to point to your local copies.
+**Prefer to host the frontend yourself?** Serve the `client/` folder with any web server — for example, `python3 -m http.server` or the included `https-server.py` script. For fully offline use, download the Bootstrap and jsQR files referenced in each HTML file and update the references in the code to point to your local copies.
 
 ---
 
