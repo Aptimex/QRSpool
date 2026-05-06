@@ -1,35 +1,28 @@
 # Setting Up HTTPS with Caddy and DuckDNS
 
-This guide walks through adding a real HTTPS certificate to the QRSpool backend using [Caddy](https://caddyserver.com/) as a reverse proxy and [DuckDNS](https://www.duckdns.org/) for a free domain name. Caddy automatically obtains and renews a certificate from Let's Encrypt — no manual cert management needed.
+This guide walks through adding a real HTTPS certificate to your QRSpool backend server using [Caddy](https://caddyserver.com/) as a reverse proxy and [DuckDNS](https://www.duckdns.org/) for a free domain name. Caddy automatically obtains and renews a certificate from Let's Encrypt, so no manual cert management is needed.
 
-The result: your backend is reachable at `https://yourname.duckdns.org`, with a certificate browsers trust natively.
+The result: your backend is reachable at `https://yourname.duckdns.org` while connected to your local network, with no certificate warnings.
 
 ## How it works
 
-```
-Phone browser
-  → https://yourname.duckdns.org (port 443)
-  → Caddy (handles TLS, proxies internally)
-  → Flask server on port 5123 (HTTP, not exposed externally)
-```
+Caddy replaces the self-signed certificate that the default Docker setup uses. Flask runs in plain HTTP mode inside a Docker container (not exposed to your network), and Caddy accepts web requests on behalf of Flask and adds a layer of HTTPS encryption to the traffic. 
 
-Caddy replaces the self-signed certificate that the default Docker setup uses. Flask runs in plain HTTP mode inside the Docker network — Caddy handles all encryption.
-
-Certificate issuance uses the **DNS-01 ACME challenge**: Caddy proves domain ownership to Let's Encrypt by writing a temporary TXT record to DuckDNS via its API, rather than by serving a file over HTTP. This means Let's Encrypt never needs to reach your server, so **no port forwarding is required** if your phone stays on the same network as the backend. If you want to reach the backend from outside your home network, forward only port 443 on your router — port 80 is not needed.
+Certificate issuance through Caddy for DuckDNS uses the DNS-01 ACME challenge. This avoids the need to expose any of your ports to the Internet. 
 
 ## Prerequisites
 
-- The machine running the backend must have a stable local IP address (set a DHCP reservation in your router if needed)
+The machine running the backend should have a stable local IP address. Many modern home routers will let you set a DHCP reservation for specific devices. 
 
-That's it. No router port forwarding is required for LAN-only use.
+If you can't accomplish this, an additional script is provided that will periodically update your DuckDNS IP address to match you server's current local IP
 
 ## Step 1: Get a DuckDNS domain
 
-1. Go to [duckdns.org](https://www.duckdns.org/) and sign in (GitHub, Google, etc.)
-2. Create a subdomain — e.g. `myprinter` → `myprinter.duckdns.org`
-3. Copy your **token** from the top of the page — it's used for both the IP updater and the DNS challenge
+1. Go to [duckdns.org](https://www.duckdns.org/) and sign in
+2. Create a free subdomain. For example, `myserver.duckdns.org`
+3. Copy your **token** from the top of the page, you'll need it in several places later
 
-Set the subdomain's IP to your backend server's **local IP address** (e.g. `192.168.1.100`) on the DuckDNS website. This ensures your phone connects to the right machine on your LAN. If you also want remote access from outside your network, use your external IP instead and forward port 443 on your router (dangerous, not recommended unless you know what you're doing).
+On the DuckDNS website, set the subdomain's IP to your backend server's **local IP address** (e.g. `192.168.1.100`). This ensures your phone connects to the right machine on your LAN. If you also want remote access from outside your network, you can use your external IP instead and forward port 443 on your router (dangerous, and not recommended unless you know what you're doing).
 
 ## Step 2: Create the Caddy files
 
@@ -52,7 +45,7 @@ COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 **`bambu-server/caddy/Caddyfile`** — replace `yourname` with your DuckDNS subdomain:
 
 ```
-yourname.duckdns.org {
+yourname.duckdns.org:443 {
     tls {
         dns duckdns {env.DUCKDNS_TOKEN}
     }
@@ -97,6 +90,54 @@ services:
       - caddy_data:/data
       - caddy_config:/config
 
+volumes:
+  caddy_data:
+  caddy_config:
+```
+
+## (Optional) Keep DuckDNS updated if your IP changes
+
+If the machine's IP is stable (static assignment or DHCP reservation), skip this. You already set the correct IP on the DuckDNS website in Step 1.
+
+If you can't obtain a static LAN IP for your backend server, modify and run this `duckdns-local.sh` script via cron to keep your DuckDNS subdomain updated with the server's current local IP:
+```bash
+#!/bin/bash
+# Updates DuckDNS with this machine's current local LAN IP.
+
+SUBDOMAIN="yourname"           # your DuckDNS subdomain (without .duckdns.org)
+TOKEN="your-duckdns-token"     # from duckdns.org dashboard
+INTERFACE="eth0"               # LAN interface to read the IP from (e.g. eth0, wlan0, enp3s0)
+LOG="/var/log/duckdns-local.log"
+
+LOCAL_IP=$(ip -4 addr show "$INTERFACE" 2>/dev/null | grep -oP '(?<=inet )\d+\.\d+\.\d+\.\d+')
+
+if [ -z "$LOCAL_IP" ]; then
+    echo "$(date -Iseconds) ERROR could not detect local IP" >> "$LOG"
+    exit 1
+fi
+
+RESPONSE=$(curl -sf "https://www.duckdns.org/update?domains=${SUBDOMAIN}&token=${TOKEN}&ip=${LOCAL_IP}")
+CURL_EXIT=$?
+
+if [ $CURL_EXIT -ne 0 ]; then
+    echo "$(date -Iseconds) ERROR curl failed (exit ${CURL_EXIT})" >> "$LOG"
+    exit 1
+fi
+
+# Uncomment this line if you need to log all server responses
+# echo "$(date -Iseconds) ip=${LOCAL_IP} response=${RESPONSE}" >> "$LOG"
+```
+
+Cron setup:
+```bash
+chmod +x bambu-server/duckdns-local.sh
+crontab -e
+# Add this line (runs every 5 minutes):
+# */5 * * * * /path/to/bambu-server/duckdns-local.sh
+```
+
+If you know what you're doing and are exposing the server to the Internet, you can instead add this to your `docker-compose.caddy.yml` file to dynamically tie your subdomain to your public-facing IP:
+```yaml
   duckdns:
     image: lscr.io/linuxserver/duckdns:latest
     container_name: duckdns-qrspool
@@ -104,14 +145,7 @@ services:
     environment:
       - SUBDOMAINS=yourname
       - TOKEN=your-duckdns-token
-      - IPADDRESS=192.168.1.100    # this machine's local IP; omit for external IP
-
-volumes:
-  caddy_data:
-  caddy_config:
 ```
-
-The `duckdns` container keeps the subdomain's IP current every five minutes. Set `IPADDRESS` to this machine's static LAN IP for home-only use. It can be ommitted to track your external IP if you understand the security risks with that approach. 
 
 ## Step 4: Start the stack
 
@@ -148,7 +182,7 @@ Look for a line like `certificate obtained successfully`. Subsequent starts skip
 - Clear the browser cache or try a private/incognito window
 - Confirm `nslookup yourname.duckdns.org` resolves to this machine's IP
 
-**Validate fails in QRSpool settings**
+**Validation fails in QRSpool settings**
 - Confirm the URL is `https://yourname.duckdns.org` with no trailing slash and no port number, and that you hit Save
 - Check Caddy is running: `sudo docker ps` should show `caddy-qrspool` as Up
 - Check Flask is running: `sudo docker logs bambu-api-server`
@@ -166,4 +200,4 @@ yourname.duckdns.org:5123 {
 }
 ```
 
-Update the `caddy` service ports in the compose file to `"5123:5123"`. Certificate issuance still works with no changes to port forwarding, since DNS-01 challenge doesn't require any inbound connections.
+Update the `caddy` service ports in the compose file to `"5123:5123"`.
