@@ -1,4 +1,4 @@
-const CLIENT_VERSION = "0.5.0";
+const CLIENT_VERSION = "0.6.0";
 
 // Minimum server version required by this client. Bump manually on breaking API changes.
 const MIN_SERVER_VERSION = "0.0.0";
@@ -6,7 +6,7 @@ const MIN_SERVER_VERSION = "0.0.0";
 // Minimum server version to support all current features. Servers between MIN and this
 // version still work but are missing newer functionality. Bump when adding non-breaking
 // new server features.
-const RECOMMENDED_SERVER_VERSION = "0.5.0";
+const RECOMMENDED_SERVER_VERSION = "0.6.0";
 
 // First server version to support the colorName field in /setFilament.
 // Servers older than this receive requests without colorName to avoid a TypeError.
@@ -220,10 +220,44 @@ async function getServerStatus() {
     return await serverGETjson("/serverStatus");
 }
 
+// Connection status (network between server and printer)
 async function getPrinterStatus() {
     return await serverGETjson("/printerStatus");
 }
 
+// What the printer is currently doing
+async function getPrinterState() {
+    return await serverGETjson("/printerState");
+}
+
 async function serverPrinterReconnect() {
     console.log(await serverGETjson("/reconnect"));
+}
+
+async function getPrinters() {
+    return await serverGETjson("/printers");
+}
+
+async function getActivePrinter() {
+    return await serverGETjson("/activePrinter");
+}
+
+async function setActivePrinter(name) {
+    let server = getServerURL();
+    if (!server) return makeError("Server not set");
+    let headers = new Headers({
+        'Content-Type': 'application/json',
+        "Authorization": getAuthHeader()
+    });
+    try {
+        const response = await fetch(server + "/activePrinter", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ name })
+        });
+        if (!response.ok) return makeError("Server responded with code " + response.status);
+        return response.json();
+    } catch (e) {
+        return makeError("Error connecting to server: " + e.message);
+    }
 }
