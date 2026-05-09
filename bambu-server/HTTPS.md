@@ -167,7 +167,7 @@ Look for a line like `certificate obtained successfully`. It may display several
 - Confirm `nslookup yourname.duckdns.org` resolves to this machine's IP
 
 **Validation fails in QRSpool settings**
-- Confirm the URL is `https://yourname.duckdns.org` with no trailing slash and no port number, and that you hit Save
+- Confirm the URL is `https://yourname.duckdns.org` with no trailing slash and no port number (unless you changed it from 443), and that you hit Save
 - Check Caddy is running: `sudo docker ps` should show `caddy-qrspool` as Up
 - Check Flask is running: `sudo docker logs bambu-api-server`
 
@@ -177,11 +177,8 @@ Change the Caddyfile to listen on a specific port:
 
 ```
 yourname.duckdns.org:5123 {
-    tls {
-        dns duckdns {env.DUCKDNS_TOKEN}
-    }
-    reverse_proxy bambu-api-server:5123
+  ...
 }
 ```
 
-Update the `caddy` service ports in the compose file to `"5123:5123"`.
+Also update the ports in the `caddy` section of `docker-compose.caddy.yml` to match, like `"5123:5123"`.

@@ -109,7 +109,7 @@ flask run --host=0.0.0.0 --port=5123
 
 **HTTPS certificate options** (uncomment the appropriate `CMD` line in the Dockerfile):
 - **HTTP only** *(lowest friction to get started)*: No certificate needed. Use with `http://qrspool.com` (no `s` before the `:`) for the frontend. Upgrade to one of the HTTPS options below once you've decided you want to keep using this project. Remember, HTTP exposes your credentials to anyone on the local network.
-- **Real certificate via reverse proxy** *(recommended for continued use)*: Use a tool like [Caddy](https://caddyserver.com/) to add proper TLS. A free [DuckDNS](https://www.duckdns.org/) subdomain gets you a real domain name to attach a certificate to. Step-by-step instructions for this kind of setup are [included in the repo here.](bambu-server/REVERSE_PROXY.md)
+- **Real certificate via reverse proxy** *(recommended for continued use)*: Use a tool like [Caddy](https://caddyserver.com/) to add proper TLS. A free [DuckDNS](https://www.duckdns.org/) subdomain gets you a real domain name to attach a certificate to. Step-by-step instructions for this kind of setup are [included in the repo here.](bambu-server/HTTPS.md)
 - **Self-signed cert** *(only use for dev work)*: Works immediately, but requires a one-time browser exception confirmation on every browser restart, which is really annoying (see the frontend setup note below). Usable for development work, not recommend for long-term use. 
 
 ### Step 2: Connect the Frontend
