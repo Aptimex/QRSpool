@@ -47,14 +47,14 @@ The typical workflow:
 3. Scan the QR code (or tap an NFC tag) on the slot you want the filament settings applied to
 4. View and verify your printer's new AMS slot setting right from your phone
 
+*If you have an Android phone with Chrome, you can use standardized NFC tags instead of QR codes. For everyone else, custom web URL NFC tags can be used and provide similar functionality, but may require extra confirmation steps each time you scan a tag. See the [NFC Tags](#nfc-tags) section for info about supported formats and how to write tags.
+
+You can also scan just a filament code/tag and then manually select a slot to apply it to on your phone. 
+
 [Quick demo video.](https://www.youtube.com/watch?v=UtbaKgVyuF8)
 
 <img align="center" src="media/scanning.png">
 <img align="center" src="media/apply.png">
-
-You can also scan just a filament code/tag and then manually select a slot to apply it to on your phone. 
-
-*If you have an Android phone with Chrome, you can use standardized NFC tags instead of QR codes. For everyone else, custom web URL NFC tags can be used and provide similar functionality, but may require extra confirmation steps each time you scan a tag. See the [NFC Tags](#nfc-tags) section for info about supported formats and how to write tags.
 
 ---
 
@@ -110,7 +110,7 @@ flask run --host=0.0.0.0 --port=5123
 **HTTPS certificate options** (uncomment the appropriate `CMD` line in the Dockerfile):
 - **HTTP only** *(lowest friction to get started)*: No certificate needed. Use with `http://qrspool.com` (no `s` before the `:`) for the frontend. Upgrade to one of the HTTPS options below once you've decided you want to keep using this project. Remember, HTTP exposes your credentials to anyone on the local network.
 - **Real certificate via reverse proxy** *(recommended for continued use)*: Use a tool like [Caddy](https://caddyserver.com/) to add proper TLS. A free [DuckDNS](https://www.duckdns.org/) subdomain gets you a real domain name to attach a certificate to. Step-by-step instructions for this kind of setup are [included in the repo here.](bambu-server/HTTPS.md)
-- **Self-signed cert** *(only use for dev work)*: Works immediately, but requires a one-time browser exception confirmation on every browser restart, which is really annoying (see the frontend setup note below). Usable for development work, not recommend for long-term use. 
+- **Self-signed cert** *(only use for dev work)*: Works immediately, but requires a browser exception confirmation on every browser restart, which is really annoying. Usable for development work, not recommend for long-term use. 
 
 ### Step 2: Connect the Frontend
 
@@ -220,12 +220,12 @@ A custom clip with multiple attachment options for filament spools [is available
 
 **On Android with Chrome**, the Scan and Apply pages show a button to enable NFC scanning. Once enabled, tapping an NFC tag works just like scanning a QR code with the camera.
 
-QRSpool current supports several different NFC formats:
+QRSpool currently supports several different NFC formats:
 - Tags containing the same plain text string as a QR code
 - [OpenSpool](https://openspool.io/rfid.html#protocol) tags
 - [OpenTag3D](https://opentag3d.info/spec) tags; but see [OpenTag3D Field Length Limits](#opentag3d-field-length-limits) for important notes if you're using OpenTag3D with a Bambu printer
 
-To write tags, use the [OpenTag3D Make tab](https://opentag3d.info/make), or a generic app like [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter). A native tag-writer will be added to QRSpool.com at some point in the future. 
+To write tags, use a general-purpose NFC app like [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter). If yout want to use OpenTag34, you can instead use the [OpenTag3D Make tab](https://opentag3d.info/make), which may be easier. Native tag-writing functionality similar to that site will be added to QRSpool.com at some point in the future. 
 
 **On iOS (and any phone without in-browser NFC):** Use URL-based NFC tags. [NFC Tools](https://apps.apple.com/us/app/nfc-tools/id1252962749) and [NFC TagWriter](https://apps.apple.com/us/app/nfc-tagwriter-by-nxp/id1246143221) are also available in iOS for this purpose. A tag containing a URL like this will open the site with filament data pre-loaded when tapped, and does not require you to already have the website/browser open.
 
