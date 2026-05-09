@@ -7,6 +7,6 @@ services:
     build:
       context: .
     volumes:
-      - ./configs:/bambu-server/configs
+      - .:/bambu-server
     ports:
       - "5123:5123"

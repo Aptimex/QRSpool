@@ -346,13 +346,16 @@ class FilamentSlot {
     }
 }
 
-// Slot QR tag format: SLOT|<ids_json>
+// Slot QR tag format: SLOT|<ids_json>|<printer_name>
+// Both ids_json and printer_name are optional (blank is allowed).
+// Old format SLOT|<ids_json> (no printer_name field) is also accepted.
 class SlotTag {
     static PROTOCOL = "SLOT";
     static DELIM = "|";
 
-    constructor(ids) {
-        this.ids = ids;
+    constructor(ids, printer_name) {
+        this.ids = ids || null;
+        this.printer_name = printer_name || null;
     }
 
     static isValidFormat(data) {
@@ -362,15 +365,30 @@ class SlotTag {
     static tryParse(data) {
         if (!SlotTag.isValidFormat(data)) return null;
         try {
-            let idsJSON = data.slice((SlotTag.PROTOCOL + SlotTag.DELIM).length);
-            let ids = JSON.parse(idsJSON);
-            return new SlotTag(ids);
+            const rest = data.slice((SlotTag.PROTOCOL + SlotTag.DELIM).length);
+            const sepIdx = rest.indexOf(SlotTag.DELIM);
+
+            let idsStr, printer_name;
+            if (sepIdx === -1) {
+                // SLOT|<ids_json>
+                idsStr = rest;
+                printer_name = null;
+
+            } else {
+                // SLOT|<ids_json>|<printer_name>
+                idsStr = rest.slice(0, sepIdx);
+                printer_name = rest.slice(sepIdx + 1).trim() || null;
+            }
+            
+            const ids = idsStr ? JSON.parse(idsStr) : null;
+            if (ids === null && printer_name === null) return null;
+            return new SlotTag(ids, printer_name);
         } catch(e) {}
         return null;
     }
 
     toQRString() {
-        return SlotTag.PROTOCOL + SlotTag.DELIM + JSON.stringify(this.ids);
+        return SlotTag.PROTOCOL + SlotTag.DELIM + (this.ids ? JSON.stringify(this.ids) : "") + SlotTag.DELIM + (this.printer_name || "");
     }
 }
 
