@@ -391,6 +391,44 @@ Field values may be empty strings if data was omitted from the scanned tag. The 
 
 Tells the server to disconnect and reconnect to the printer. No parameters. Intended as a quick-fix when things aren't working as expected.
 
+#### GET /printers
+
+Returns the list of configured printer names. Used by the frontend to populate the printer selector dropdown.
+
+```json
+["My Printer", "Workshop Printer"]
+```
+
+#### GET /activePrinter
+
+Returns the name of the currently active printer.
+
+```json
+{
+    "name": "My Printer"
+}
+```
+
+#### POST /activePrinter
+
+Switches the active printer. Server will tear down the connection to the current printer and establishes a new connection to the target printer.
+
+```json
+// Request
+{ "name": "Workshop Printer" }
+
+// Response
+{ "name": "Workshop Printer" }
+```
+
+If the requested printer name is not recognized, the server returns an error with the list of known printers (lookup is case-insensitive):
+
+```json
+{
+    "error": "Unknown printer 'SomePrinter'. Known printers: ['My Printer', 'Workshop Printer']"
+}
+```
+
 ### Backend Server Authentication
 
 The server uses standard [HTTP Basic Authentication](https://en.wikipedia.org/wiki/Basic_access_authentication). All endpoints except `/serverStatus` require:
