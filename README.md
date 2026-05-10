@@ -53,7 +53,7 @@ You can also scan just a filament code/tag and then manually select a slot to ap
 
 Click below for a quick demo video of the QR scanning process in action:
 
-<a href="https://www.youtube.com/shorts/bS265bDV_I8" target="_blank" rel="noopener noreferrer"><img align="center" src="media/scanning.png"></a>
+<a href="https://www.youtube.com/shorts/bS265bDV_I8" target="_blank" rel="noopener noreferrer"><img align="center" src="media/scanning.png" style="border: 1px solid black"></a>
 
 ---
 
