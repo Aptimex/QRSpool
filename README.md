@@ -220,7 +220,7 @@ A custom clip with multiple attachment options for filament spools [is available
 **On Android with Chrome**, the Scan and Apply pages show a button to enable NFC scanning. Once enabled, tapping an NFC tag works just like scanning a QR code with the camera.
 
 > [!IMPORTANT]
-> The Web NFC API only works when the website is using HTTPS, or is running on `localhost`. So you must also be using HTTPS (self-signed cert works) on your backend server to make use of this feature when using QRSPool.com.
+> The Web NFC API only works when the website is using HTTPS, or is running on `localhost`. So you must also be using HTTPS (self-signed cert works) on your backend server to make use of this feature when using QRSpool.com.
 
 QRSpool currently supports several different NFC formats:
 - Tags containing the same plain text string as a QR code
