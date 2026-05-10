@@ -51,7 +51,9 @@ The typical workflow:
 
 You can also scan just a filament code/tag and then manually select a slot to apply it to on your phone. 
 
-<a href="https://www.youtube.com/shorts/bS265bDV_I8"><img align="center" src="media/scanning.png"></a>
+Click below for a quick demo video of the QR scanning process in action:
+
+<a href="https://www.youtube.com/shorts/bS265bDV_I8" target="_blank" rel="noopener noreferrer"><img align="center" src="media/scanning.png"></a>
 
 ---
 
