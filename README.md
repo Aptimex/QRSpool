@@ -51,10 +51,9 @@ The typical workflow:
 
 You can also scan just a filament code/tag and then manually select a slot to apply it to on your phone. 
 
-[Quick demo video.](https://www.youtube.com/watch?v=UtbaKgVyuF8)
+Click below for a quick demo video of the QR scanning process in action:
 
-<img align="center" src="media/scanning.png">
-<img align="center" src="media/apply.png">
+<a href="https://www.youtube.com/shorts/bS265bDV_I8"><img align="center" src="media/scanning.png"></a>
 
 ---
 
@@ -283,6 +282,8 @@ If all fallbacks fail, the server returns an error.
 This section covers implementation details for developers who want to build compatible servers or clients.
 
 QRSpool's frontend and backend are intentionally decoupled: the frontend handles all QR/NFC parsing and generates standard REST requests to the backend; the backend translates those REST requests into whatever protocol a given printer needs. A backend server for a different printer brand could be built without changing the frontend at all (in theory).
+
+![QRSpool Diagram](media/QRSpool.drawio.svg)
 
 ### URL Parameters
 
