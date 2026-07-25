@@ -1,4 +1,12 @@
+# The mqtt.py backend (printers with "new_dev_mode": true) is built on these
+# two. They are not on PyPI yet — install from a checkout: pip install ./bambu-mqtt-comms
+bambu-mqtt-comms>=0.1.0
+bambu-mqtt-generator>=1.0.0
+cryptography
+
+# bambu.py backend (printers with "new_dev_mode": false)
 bambulabs_api==2.6.6
+
 blinker==1.9.0
 click==8.3.2
 Flask==3.1.3

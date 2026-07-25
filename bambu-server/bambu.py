@@ -30,7 +30,7 @@ def _printer_name(idx, cfg):
 
 PRINTERS_MAP = {}
 for _i, _cfg in enumerate(PRINTERS):
-    if _cfg.get("new_dev_mode"):
+    if _cfg.get("enable_custom_libraries"):
         continue
     _name = _printer_name(_i, _cfg)
     if _name not in PRINTERS_MAP:  # first entry wins on duplicate names

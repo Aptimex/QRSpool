@@ -2,20 +2,36 @@
   "auth_user": "",
   "auth_pass": "",
   "inactivity_timeout": 300,
+  "key_pem_file": "configs/signing/key.pem",
+  "cert_chain_pem_file": "configs/signing/chain.pem",
+  "crl_pem_file": "configs/signing/crl.pem",
   "printers": [
     {
-      "name": "My First Printer",
+      "name": "My First Printer (bambulabs_api backend)",
       "ip": "192.168.1.100",
       "serial": "0123456789ABCDE",
       "access_code": "98765432",
-      "new_dev_mode": false
+      "enable_custom_libraries": false
     },
     {
-      "name": "My Second Printer",
+      "name": "My Second Printer (signed)",
       "ip": "192.168.1.101",
       "serial": "0123456789ABCDF",
+      "model_id": "N2S",
+      "firmware_version": "01.05.00.00",
       "access_code": "87654321",
-      "new_dev_mode": true
+      "enable_custom_libraries": true,
+      "enable_signing": true
+    },
+    {
+      "name": "My Third Printer (LAN/dev mode, no signing credentials)",
+      "ip": "192.168.1.102",
+      "serial": "0123456789ABCDG",
+      "model_id": "N7",
+      "firmware_version": "01.02.00.00",
+      "access_code": "76543210",
+      "enable_custom_libraries": true,
+      "enable_signing": false
     }
   ]
 }

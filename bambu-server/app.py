@@ -30,7 +30,7 @@ _ALL_PRINTERS: dict = {}
 for _i, _cfg in enumerate(PRINTERS):
     _name = _cfg.get("name") or _cfg.get("ip", f"Printer {_i+1}")
     if _name not in _ALL_PRINTERS:
-        _backend = mqtt if _cfg.get("new_dev_mode") else bambu
+        _backend = mqtt if _cfg.get("enable_custom_libraries") else bambu
         _ALL_PRINTERS[_name] = (_backend, _cfg)
 
 # Initialize the active backend to the first printer
