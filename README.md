@@ -219,7 +219,7 @@ The two backends can be mixed freely on different printers: set the flag per pri
 ### Command signing *(highly experimental)*
 
 <details>
-<summary>Here be dragons</summary>
+<summary>Here be dragons (click to expand)</summary>
 
 Bambu firmware released after roughly January 2025 (after the rollout of their "Authorization Control" changes) rejects unsigned state-changing commands. Reading slot data still works, but writes silently fail. Signing solves that, at the cost of needing credentials (certs and keys) that Bambu does not publish.
 

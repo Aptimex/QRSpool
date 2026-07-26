@@ -1,8 +1,8 @@
-# custom library backend, for printers with "enable_custom_libraries": true.
+# Custom library backend, for printers with "enable_custom_libraries": true.
 # Not published to PyPI (yet), so these install straight from GitHub — which means pip
 # needs git on PATH. They pull their own dependencies (paho-mqtt, cryptography).
-bambu-mqtt-comms @ git+https://github.com/Aptimex/bambu-mqtt-comms.git
-bambu-mqtt-generator @ git+https://github.com/Aptimex/bambu-mqtt-generator.git
+bambu-mqtt-comms @ git+https://github.com/Aptimex/bambu-mqtt-comms.git@8f3c824
+bambu-mqtt-generator @ git+https://github.com/Aptimex/bambu-mqtt-generator.git@96e6176
 
 # bambu.py backend, for printers with "enable_custom_libraries": false
 bambulabs_api==2.6.6
