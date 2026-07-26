@@ -175,7 +175,7 @@ All server settings live in `bambu-server/configs/bambu_config.json`. Copy `bamb
 | `access_code` | yes | — | Access code from the printer's display (Settings > LAN Only) |
 | `enable_custom_libraries` | no | `false` | Selects which backend talks to this printer (see below) |
 
-#### Custom-library settings
+#### Experimental settings
 
 These apply only when `enable_custom_libraries` is `true`, and are ignored otherwise.
 
@@ -187,9 +187,7 @@ These apply only when `enable_custom_libraries` is `true`, and are ignored other
 
 If you leave `model_id` or `firmware_version` out, the server asks the printer at connect time and logs what it found. Setting them explicitly skips that check and makes the initial connection faster and more reliable. If detection fails the server says so and names the two fields to set.
 
-#### Printer model IDs
-
-Either column works for `model_id` — the printer name or the id — and both are matched case-insensitively.
+Here's a list of valid `model_id` values associated with each printer name.  
 
 | Printer | Model ID | | Printer | Model ID |
 |---|---|---|---|---|
@@ -202,23 +200,26 @@ Either column works for `model_id` — the printer name or the id — and both a
 | P2S | N7 | | H2S | O1S |
 | A1 mini | N1 | | | |
 
-The H2C is the one exception: it ships as two model ids with different capabilities, so the name `H2C` is rejected as ambiguous. Use `O1C` or `O1C2` — or leave `model_id` out entirely and let the server detect which one your printer is.
+For convenience, supplying one these exact printer names instead of an ID is also supported. The H2C is the one exception: it ships as two model IDs with different capabilities, so the name `H2C` is rejected as ambiguous. Use `O1C` or `O1C2` — or leave `model_id` out entirely and let the server detect which one your printer is. Note that name and ID values are both are matched case-insensitively.
 
-This table is maintained in the [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator) library, which is where these IDs come from; check there if a newer printer is missing here.
+This table is maintained in the [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator) library, which is where these IDs come from; check there for possible updates if a newer printer is missing here.
 
 ### Choosing a backend
 
-Each printer is handled by one of two backends:
+Each connected printer is handled by one of two communication backends, defined by the value of its `enable_custom_libraries` key in your config:
 
-- **`enable_custom_libraries: false`** *(default)* — uses [bambulabs-api](https://pypi.org/project/bambulabs-api/), a mature third-party library. This is the well-tested path and the right choice for any printer it supports, which is most printers on pre-Jan-2025 firmware running in LAN-only mode.
-- **`enable_custom_libraries: true`** — uses [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) and [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator), two custom libraries written for this project. It's what makes printers on newer firmwares with LAN+DEV mode work, and provides the support for signing commands to enable interoperability and control over cloud-connected printers too (DEV mode off). The library is designed (theoretically) to take into account the capabilities and expected data formats for every different printer+firmware combination when generating and sending messages.
+- **`false`** *(default)* — uses [bambulabs-api](https://pypi.org/project/bambulabs-api/), a mature third-party library. This is the well-tested path and the right choice for any printer it supports, which is most printers on pre-Jan-2025 firmware running in LAN-only mode.
+- **`true`** — uses my custom [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) and [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator) libraries that I developed specifically for this project. These make printers on newer firmwares with LAN+DEV mode work, and provides the support for signing commands to enable interoperability and control over cloud-connected printers too (when Developer mode is off). These libraries will (theoretically) take into account the capabilities and expected data formats for every different printer+firmware combination when generating and sending messages; that's why they require the printer model and firmware version.
 
 > [!WARNING]
-> The custom-library backend is **very experimental**. It speaks an undocumented protocol reconstructed from the Bambu Studio source and limited traffic analysis, it has only been tested on a small number of printers, and Bambu can change the protocol in any firmware update without notice. Only enable it for printers that the default `bambulabs-api` backend can't handle. If your printer runs an older LAN-only firmware, leave this off, it won't provide any benefit. 
+> The custom-library backend is **very experimental**. It speaks an undocumented protocol reconstructed from the Bambu Studio source and limited traffic analysis, it has only been tested on a small number of printers, and Bambu can change the protocol in any firmware update without notice. Only enable it for printers that the default `bambulabs-api` backend can't handle: if your printer runs an older LAN-only firmware (no Developer mode option), then leave this off, it won't provide any benefit and might not work at all.
 
 The two backends can be mixed freely on different printers: set the flag per printer, and each connects its own way.
 
 ### Command signing *(highly experimental)*
+
+<details>
+<summary>Here be dragons</summary>
 
 Bambu firmware released after roughly January 2025 (after the rollout of their "Authorization Control" changes) rejects unsigned state-changing commands. Reading slot data still works, but writes silently fail. Signing solves that, at the cost of needing credentials (certs and keys) that Bambu does not publish.
 
@@ -235,9 +236,9 @@ Bambu firmware released after roughly January 2025 (after the rollout of their "
 
 The contents of all these files must come from Bambu, there is currently no way to generate and use your own.
 
-The `key` is normally the hardest thing to get, but can currently be easily obtained using this project: https://github.com/danielwoz/BambuSlicerKeySaver
+The `key` is normally the hardest thing to get, but can currently be easily obtained using the Linux code in [this project](https://github.com/danielwoz/BambuSlicerKeySaver).
 
-The associated `chain` and `crl` contents can currently be obtained by visiting the URL mentioned here and parsing the JSON response: https://bambuzled.github.io/posts/bambu-auth-control/#the-current-cert-api
+The associated `chain` and `crl` contents can currently be obtained by visiting the API URL [mentioned here](https://bambuzled.github.io/posts/bambu-auth-control/#the-current-cert-api) and parsing the JSON response.
 
 **None of these files are bundled with this project, and they will not be provided here.**
 
@@ -269,6 +270,10 @@ The associated `chain` and `crl` contents can currently be obtained by visiting 
 On connect the server registers your certificate with the printer and waits until the printer confirms it trusts it, then signs each command it sends. Registration is lost whenever the printer power-cycles (and for some printers, when a different application connects to it), so this registration repeats on every connection. 
 
 If the credentials are missing or the printer never trusts the certificate, the server logs a warning and falls back to sending unsigned commands rather than failing outright. On firmware that requires signatures those writes will be rejected, and the rejection is reported back to the frontend.
+
+I welcome bug reports related to this experimental signing functionality, but won't provide any support for the process of obtaining the required files.
+
+</details>
 
 ---
 
