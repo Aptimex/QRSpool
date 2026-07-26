@@ -1,10 +1,10 @@
-# The mqtt.py backend (printers with "new_dev_mode": true) is built on these
-# two. They are not on PyPI yet — install from a checkout: pip install ./bambu-mqtt-comms
-bambu-mqtt-comms>=0.1.0
-bambu-mqtt-generator>=1.0.0
-cryptography
+# custom library backend, for printers with "enable_custom_libraries": true.
+# Not published to PyPI (yet), so these install straight from GitHub — which means pip
+# needs git on PATH. They pull their own dependencies (paho-mqtt, cryptography).
+bambu-mqtt-comms @ git+https://github.com/Aptimex/bambu-mqtt-comms.git
+bambu-mqtt-generator @ git+https://github.com/Aptimex/bambu-mqtt-generator.git
 
-# bambu.py backend (printers with "new_dev_mode": false)
+# bambu.py backend, for printers with "enable_custom_libraries": false
 bambulabs_api==2.6.6
 
 blinker==1.9.0

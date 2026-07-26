@@ -1,7 +1,8 @@
 FROM python:3
 
 RUN apt-get update
-RUN apt-get install -y openssl inetutils-ping
+# git is needed by pip: two of the requirements install from GitHub rather than PyPI
+RUN apt-get install -y openssl inetutils-ping git
 
 WORKDIR /bambu-server
 COPY requirements.txt /bambu-server/requirements.txt

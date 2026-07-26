@@ -8,7 +8,9 @@
 
 Update your 3D printer's filament slot settings by scanning a printed QR code or NFC tag with your phone. Point your camera at a filament code, then a slot code, and the printer updates its AMS settings instantly. 
 
-> **Beta:** Fully functional for Bambu Labs printers in LAN-only mode, with experimental support for printers that use the newer LAN+DEV mode (tested on a P2S with AMS 2 Pro). Please report any issues you encounter.
+> **Beta:** Fully functional for Bambu Labs printers on pre-January-2025 firmware, using the well-established [bambulabs-api](https://pypi.org/project/bambulabs-api/) library. Printers on newer firmwares with LAN+DEV mode are supported by an **experimental** custom communication library that is off by default and must be enabled per printer — see [Choosing a backend](#choosing-a-backend). Please report any issues you encounter.
+
+**Super Experimental:** Now includes initial support for cloud-connected printers (**not** on LAN+DEV mode) on the latest firmwares, but only over local LAN communication (server still has to be on the same local network). This requires you to obtain and provide appropriate certificates and keys for signing printer commands, which is non-trivial. Most users should stick with LAN+DEV mode, but full details are in the [Configuration](#configuration) section.
 
 ## Table of Contents
 - [What It Does](#what-it-does)
@@ -16,6 +18,11 @@ Update your 3D printer's filament slot settings by scanning a printed QR code or
 - [Quick Start](#quick-start)
   - [Step 1: Set Up the Backend Server](#step-1-set-up-the-backend-server)
   - [Step 2: Connect the Frontend](#step-2-connect-the-frontend)
+- [Configuration](#configuration)
+  - [Top-level settings](#top-level-settings)
+  - [Per-printer settings](#per-printer-settings)
+  - [Choosing a backend](#choosing-a-backend)
+  - [Command signing](#command-signing-highly-experimental)
 - [Scanning and Applying Filament](#scanning-and-applying-filament)
 - [Creating Tags](#creating-tags)
   - [Filament QR Codes](#filament-qr-codes)
@@ -62,6 +69,7 @@ Click below for a quick demo video of the QR scanning process in action:
 - **Printer:** A Bambu Labs printer in LAN-only mode, or LAN+DEV mode for newer printers/firmware (other printer brands not currently supported)
 - **Server:** An always-on computer (server) on the same network as your printer, able to run either Docker (recommended) or Python ≥3.10
   - Will work best if it has a stable local IP address or DNS name
+  - Needs internet access when first installing dependencies, and `git` on PATH if you install natively rather than with Docker
 - **Phone:** Any modern smartphone with a camera
   - Chrome is recommended; Firefox and Safari support the core scanning features with some limitations
 
@@ -79,7 +87,7 @@ cd QRSpool/bambu-server
 cp configs/bambu_config.example.json configs/bambu_config.json
 ```
 
-Now edit `configs/bambu_config.json` and fill in your printer's IP address, serial number, and access code, and set a username and password for the server. Multiple printers can be configured in that file; just ensure each printer entry in that file receives a unique name. 
+Now edit `configs/bambu_config.json` and fill in your printer's IP address, serial number, and access code, and set a username and password for the server. Multiple printers can be configured in that file; just ensure each printer entry in that file receives a unique name. The defaults suit a LAN-only printer; see [Configuration](#configuration) for the full list of settings, including what to change for a printer in LAN+DEV mode.
 
 **Run it with Docker (recommended):**
 
@@ -89,14 +97,27 @@ sudo docker compose up --build -d
 
 This starts the server on port 5123 using HTTP only. Configuration files are mounted live from the `configs/` folder and persist across container restarts. If you ever change a config, just run `sudo docker compose restart` to reload them. 
 
+> [!NOTE]
+> The build installs two of its dependencies from GitHub rather than PyPI (see [3rd Party Dependencies](#3rd-party-dependencies)), so the machine needs internet access the first time you build. Docker caches that step, so a later `--build` will *not* pick up new versions of those two libraries — use `sudo docker compose build --no-cache` when you want to update them.
+
 <details>
 <summary>Running natively without Docker</summary>
 
+You'll need **git** installed as well as Python, because two of the requirements install from GitHub rather than PyPI (see [3rd Party Dependencies](#3rd-party-dependencies)). Using a virtual environment is recommended, and required on distributions that mark the system Python as externally managed.
+
 ```bash
 cd bambu-server/
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 python3 -m pip install -r requirements.txt
 openssl req -new -x509 -keyout key.pem -out server.pem -days 3650 -nodes
 flask run --host=0.0.0.0 --port=5123
+```
+
+To pick up later changes to those two libraries, re-run the install with `--upgrade`:
+
+```bash
+python3 -m pip install --upgrade --force-reinstall -r requirements.txt
 ```
 </details>
 
@@ -128,6 +149,126 @@ Go to the **Scan** tab and grant camera and/or NFC access as prompted. Now you'r
 > Firefox and Safari also support QR scanning, but lack torch (flashlight) control, vibrate-on-scan, and NFC scanning. Chrome on Android is recommended for the full experience.
 
 **Prefer to host the frontend yourself?** Serve the `client/` folder with any web server - for example, `python3 -m http.server` or the included `https-server.py` script. For fully offline use, download the Bootstrap and jsQR files referenced in each HTML file and update the references in the code to point to your local copies.
+
+---
+
+## Configuration
+
+All server settings live in `bambu-server/configs/bambu_config.json`. Copy `bambu_config.example.json` to get started. With Docker the whole `configs/` folder is mounted live, so your settings survive rebuilds — run `sudo docker compose restart` after any change to reload it.
+
+### Top-level settings
+
+| Key | Required | Default | Purpose |
+|---|---|---|---|
+| `printers` | yes | — | List of printer entries (see below). Each needs a unique `name`. |
+| `auth_user` / `auth_pass` | yes | — | Credentials the frontend uses to reach the server |
+| `inactivity_timeout` | no | `300` | Seconds of inactivity before the server drops its printer connection. `0` disables it. |
+| `key_pem_file`<br>`cert_chain_pem_file`<br>`crl_pem_file` | only for signing | — | Paths to signing credentials, relative to `bambu-server/`. See [Command signing](#command-signing-highly-experimental). |
+
+### Per-printer settings
+
+| Key | Required | Default | Purpose |
+|---|---|---|---|
+| `name` | recommended | the printer's IP | Display name; must be unique across printers |
+| `ip` | yes | — | Printer's local IP address |
+| `serial` | yes | — | Printer serial number |
+| `access_code` | yes | — | Access code from the printer's display (Settings > LAN Only) |
+| `enable_custom_libraries` | no | `false` | Selects which backend talks to this printer (see below) |
+
+#### Custom-library settings
+
+These apply only when `enable_custom_libraries` is `true`, and are ignored otherwise.
+
+| Key | Required | Default | Purpose |
+|---|---|---|---|
+| `enable_signing` | no | `false` | Sign commands sent to this printer. See [Command signing](#command-signing-highly-experimental). |
+| `model_id` | no | auto-detected | Printer model id, e.g. `N2S` for an A1 — see the table below |
+| `firmware_version` | no | auto-detected | e.g. `01.05.00.00`. Check Settings > Device > Firmware on the printer. |
+
+If you leave `model_id` or `firmware_version` out, the server asks the printer at connect time and logs what it found. Setting them explicitly skips that check and makes the initial connection faster and more reliable. If detection fails the server says so and names the two fields to set.
+
+#### Printer model IDs
+
+Either column works for `model_id` — the printer name or the id — and both are matched case-insensitively.
+
+| Printer | Model ID | | Printer | Model ID |
+|---|---|---|---|---|
+| X1 Carbon | BL-P001 | | A1 | N2S |
+| X1 | BL-P002 | | A2L | N9 |
+| X1E | C13 | | H2C | O1C |
+| X2D | N6 | | H2C | O1C2 |
+| P1P | C11 | | H2D | O1D |
+| P1S | C12 | | H2D Pro | O1E |
+| P2S | N7 | | H2S | O1S |
+| A1 mini | N1 | | | |
+
+The H2C is the one exception: it ships as two model ids with different capabilities, so the name `H2C` is rejected as ambiguous. Use `O1C` or `O1C2` — or leave `model_id` out entirely and let the server detect which one your printer is.
+
+This table is maintained in the [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator) library, which is where these IDs come from; check there if a newer printer is missing here.
+
+### Choosing a backend
+
+Each printer is handled by one of two backends:
+
+- **`enable_custom_libraries: false`** *(default)* — uses [bambulabs-api](https://pypi.org/project/bambulabs-api/), a mature third-party library. This is the well-tested path and the right choice for any printer it supports, which is most printers on pre-Jan-2025 firmware running in LAN-only mode.
+- **`enable_custom_libraries: true`** — uses [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) and [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator), two custom libraries written for this project. It's what makes printers on newer firmwares with LAN+DEV mode work, and provides the support for signing commands to enable interoperability and control over cloud-connected printers too (DEV mode off). The library is designed (theoretically) to take into account the capabilities and expected data formats for every different printer+firmware combination when generating and sending messages.
+
+> [!WARNING]
+> The custom-library backend is **very experimental**. It speaks an undocumented protocol reconstructed from the Bambu Studio source and limited traffic analysis, it has only been tested on a small number of printers, and Bambu can change the protocol in any firmware update without notice. Only enable it for printers that the default `bambulabs-api` backend can't handle. If your printer runs an older LAN-only firmware, leave this off, it won't provide any benefit. 
+
+The two backends can be mixed freely on different printers: set the flag per printer, and each connects its own way.
+
+### Command signing *(highly experimental)*
+
+Bambu firmware released after roughly January 2025 (after the rollout of their "Authorization Control" changes) rejects unsigned state-changing commands. Reading slot data still works, but writes silently fail. Signing solves that, at the cost of needing credentials (certs and keys) that Bambu does not publish.
+
+> [!WARNING]
+> Signing is the least-tested part of this project. It requires key material you must obtain yourself, it depends on protocol details that firmware updates may change, and it is off by default. Proceed at your own risk.
+
+**You need three PEM files:**
+
+| File | Contents |
+|---|---|
+| `key.pem` | The private key that signs each command |
+| `chain.pem` | The full certificate chain: leaf + intermediate + root. The leaf is extracted from it automatically, so it isn't configured separately. |
+| `crl.pem` | The certificate revocation list, sent during registration |
+
+The contents of all these files must come from Bambu, there is currently no way to generate and use your own.
+
+The `key` is normally the hardest thing to get, but can currently be easily obtained using this project: https://github.com/danielwoz/BambuSlicerKeySaver
+
+The associated `chain` and `crl` contents can currently be obtained by visiting the URL mentioned here and parsing the JSON response: https://bambuzled.github.io/posts/bambu-auth-control/#the-current-cert-api
+
+**None of these files are bundled with this project, and they will not be provided here.**
+
+**Setup:**
+
+1. Put the three files in `bambu-server/configs/signing/`. That folder already exists and is mounted into the container.
+2. Point the top-level config keys at them:
+
+   ```json
+   "key_pem_file": "configs/signing/key.pem",
+   "cert_chain_pem_file": "configs/signing/chain.pem",
+   "crl_pem_file": "configs/signing/crl.pem",
+   ```
+
+   All three are required together — the server refuses to start if only some are set.
+3. Set both flags on each printer that needs signing:
+
+   ```json
+   {
+     "name": "My P2S",
+     "ip": "192.168.1.100",
+     "serial": "0123456789ABCDE",
+     "access_code": "87654321",
+     "enable_custom_libraries": true,
+     "enable_signing": true
+   }
+   ```
+
+On connect the server registers your certificate with the printer and waits until the printer confirms it trusts it, then signs each command it sends. Registration is lost whenever the printer power-cycles (and for some printers, when a different application connects to it), so this registration repeats on every connection. 
+
+If the credentials are missing or the printer never trusts the certificate, the server logs a warning and falls back to sending unsigned commands rather than failing outright. On firmware that requires signatures those writes will be rejected, and the rejection is reported back to the frontend.
 
 ---
 
@@ -274,9 +415,11 @@ If all fallbacks fail, the server returns an error.
 
 **Cloud-connected printers:** Slot data can be read, but applying filament changes will silently fail. LAN-only mode (LAN+DEV on newer printers/firmware) is required for writes.
 
-**Tested LAN-Only hardware:** A1 (firmware 01.04.00.00) with AMS Lite (firmware 00.00.07.94). Should work with any printer and AMS supported by [bambulabs-api](https://pypi.org/project/bambulabs-api/).
+**Tested LAN-Only hardware:** A1 (firmware 01.04.00.00) with AMS Lite (firmware 00.00.07.94). Should work with any printer and AMS supported by [bambulabs-api](https://pypi.org/project/bambulabs-api/). This is the default backend and the recommended one wherever it works.
 
-**Experimental LAN+DEV support:** Only tested on a P2S. If you know of a Python library that has proper support for this mode let me know, the current support is fully custom and based on limited traffic analysis. 
+**Experimental LAN+DEV support:** Enabled per printer via `enable_custom_libraries` (see [Choosing a backend](#choosing-a-backend)). Tested on an A1 (firmware 01.05.00.00, AMS Lite) and a P2S (firmware 01.02.00.00, AMS 2 Pro), covering both external-spool reporting formats. Everything about it is reconstructed from the Bambu Studio source and traffic analysis rather than documentation, so treat it as experimental on any printer — and expect firmware updates to be able to break it. If you know of an existing Python library with better-tested support for newer printers and firmwares, let me know.
+
+**Command signing:** Firmware from roughly January 2025 onward rejects unsigned writes for cloud-connected printers. Signing is supported but off by default and needs credentials you must supply yourself; see [Command signing](#command-signing-highly-experimental).
 
 ---
 
@@ -449,4 +592,6 @@ The server does not rate-limit bad authentication requests, so is potentially vu
 
 - [jsQR](https://github.com/cozmo/jsQR): QR code decoding from the camera feed (frontend)
 - [Bootstrap](https://getbootstrap.com/): UI framework (frontend)
-- [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2: Bambu printer communication (backend) for LAN-only printers
+- [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2: Bambu printer communication (backend) for LAN-only printers — the default backend
+- [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) + [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator): MQTT connection handling, payload generation and signing (backend) for printers using the experimental `enable_custom_libraries` mode. **Not published to PyPI** — `requirements.txt` installs them directly from GitHub, so pip needs `git` available. Both are installed regardless of whether any printer enables that mode.
+- [paho-mqtt](https://pypi.org/project/paho-mqtt/) and [cryptography](https://pypi.org/project/cryptography/): underlying MQTT transport and signing primitives, pulled in automatically by those two

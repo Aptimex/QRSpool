@@ -147,6 +147,18 @@ class _PrinterSession:
         client.connect(timeout=CONNECT_TIMEOUT)
         self.client = client
 
+        try:
+            self._finish_connect()
+        except Exception:
+            # Anything below needs the connection, so a failure there leaves a
+            # session that looks connected but has no builder. Tear it down so
+            # the next call retries from scratch instead of failing oddly.
+            self.disconnect()
+            raise
+
+    def _finish_connect(self) -> None:
+        """Register the certificate and prepare the payload builder."""
+
         # The printer forgets registered certificates on power cycle, so this
         # runs per connection. install_app_cert polls until the cert actually
         # shows up in app_cert_list; signed commands sent before then are
