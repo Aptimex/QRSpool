@@ -218,13 +218,13 @@ The two backends can be mixed freely on different printers: set the flag per pri
 
 ### Command signing *(highly experimental)*
 
+> [!CAUTION]
+> Support for cloud-connected printers via command signing is the least-tested part of this project. It requires key material you must obtain yourself, it depends on protocol details that firmware updates may change, and it is off by default. Proceed at your own risk.
+
 <details>
-<summary>Here be dragons (click to expand)</summary>
+<summary>Here be dragons (click to proceed)</summary>
 
-Bambu firmware released after roughly January 2025 (after the rollout of their "Authorization Control" changes) rejects unsigned state-changing commands. Reading slot data still works, but writes silently fail. Signing solves that, at the cost of needing credentials (certs and keys) that Bambu does not publish.
-
-> [!WARNING]
-> Signing is the least-tested part of this project. It requires key material you must obtain yourself, it depends on protocol details that firmware updates may change, and it is off by default. Proceed at your own risk.
+Bambu firmware released after roughly January 2025 (after the rollout of their "Authorization Control" changes) rejects unsigned state-changing commands. Reading slot data still works, but writes silently fail. Signing solves that, but requires getting access to certs and keys that Bambu does not publish.
 
 **You need three PEM files:**
 
@@ -232,19 +232,19 @@ Bambu firmware released after roughly January 2025 (after the rollout of their "
 |---|---|
 | `key.pem` | The private key that signs each command |
 | `chain.pem` | The full certificate chain: leaf + intermediate + root. The leaf is extracted from it automatically, so it isn't configured separately. |
-| `crl.pem` | The certificate revocation list, sent during registration |
+| `crl.pem` | Any signed certificate revocation list. Expired ones work fine. |
 
 The contents of all these files must come from Bambu, there is currently no way to generate and use your own.
 
-The `key` is normally the hardest thing to get, but can currently be easily obtained using the Linux code in [this project](https://github.com/danielwoz/BambuSlicerKeySaver).
+The `key` is normally the hardest thing to get, but currently can be easily obtained using the Linux code in [this project](https://github.com/danielwoz/BambuSlicerKeySaver).
 
-The associated `chain` and `crl` contents can currently be obtained by visiting the API URL [mentioned here](https://bambuzled.github.io/posts/bambu-auth-control/#the-current-cert-api) and parsing the JSON response.
+The associated Linux `chain` and `crl` contents can currently be obtained by visiting the API URL [mentioned here](https://bambuzled.github.io/posts/bambu-auth-control/#the-current-cert-api) and parsing the JSON response.
 
-**None of these files are bundled with this project, and they will not be provided here.**
+**None of these files are included with this project, and requests for them will be ignored.**
 
 **Setup:**
 
-1. Put the three files in `bambu-server/configs/signing/`. That folder already exists and is mounted into the container.
+1. Put the three files in `bambu-server/configs/signing/`. That folder already exists and gets mounted into the container.
 2. Point the top-level config keys at them:
 
    ```json
@@ -253,7 +253,7 @@ The associated `chain` and `crl` contents can currently be obtained by visiting 
    "crl_pem_file": "configs/signing/crl.pem",
    ```
 
-   All three are required together — the server refuses to start if only some are set.
+   All three are required together to enable signing — the server refuses to start if only some are set.
 3. Set both flags on each printer that needs signing:
 
    ```json
