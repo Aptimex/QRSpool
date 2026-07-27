@@ -53,6 +53,12 @@ COLOR_HEX_KEYS = ["Color"]
 
 CONNECT_TIMEOUT = 20.0
 STATUS_TIMEOUT = 20.0
+# How stale the pushed status may be before a fresh pushall is worth asking for.
+# Printers push on their own every 1-2s, so anything within a few seconds is
+# current. Asking every time is what to avoid: a pushall makes the printer send
+# a full report, and enough of them in a row makes it stop sending them at all,
+# after which every read fails until the connection is rebuilt.
+STATUS_MAX_AGE = 5.0
 COMMAND_TIMEOUT = 15.0
 
 _CONFIG = load_config()
@@ -246,6 +252,15 @@ class _PrinterSession:
             self._status = self.client.request_status(timeout=STATUS_TIMEOUT)
             return self._status
 
+    def current_status(self, max_age: float = STATUS_MAX_AGE) -> Optional[dict]:
+        """Status from the printer's own push stream, or a pushall if stale."""
+        pushed = self.client.get_status(max_age=max_age)
+        if pushed is not None:
+            with self._lock:
+                self._status = pushed
+            return pushed
+        return self.refresh_status()
+
     @property
     def status(self) -> Optional[dict]:
         with self._lock:
@@ -300,12 +315,10 @@ def _gcode_state() -> dict:
     if error:
         return error
 
-    status = _current.status
-    if status is None:
-        try:
-            status = _current.refresh_status()
-        except BambuMQTTError:
-            status = None
+    try:
+        status = _current.current_status()
+    except BambuMQTTError:
+        status = None
 
     return {"state": (status or {}).get("gcode_state", "UNKNOWN")}
 
@@ -327,7 +340,7 @@ def getSlots():
         return error
 
     try:
-        status = _current.refresh_status()
+        status = _current.current_status()
     except BambuMQTTError as e:
         return makeError(f"No printer data received: {e}")
 
@@ -410,7 +423,7 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, col
         return False, "Unable to match brand and type with known Bambu codes"
 
     try:
-        status = _current.refresh_status()
+        status = _current.current_status()
     except BambuMQTTError as e:
         return False, f"No printer data available: {e}"
     if not status:
