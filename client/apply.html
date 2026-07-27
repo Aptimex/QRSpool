@@ -115,10 +115,16 @@
                 return;
             }
             const origText = applyBtn.innerText;
-            applyBtn.innerText = "Applying, please wait 5-10 seconds...";
+            applyBtn.innerText = "Applying...";
             applyBtn.disabled = true;
 
             let result = await setFilamentSlotFromTag(activeSlotIDsJSON);
+            if (!result.error) {
+                // Accepted by the printer; wait for it to take effect before
+                // reporting success, so a refresh shows the new values.
+                applyBtn.innerText = "Applied, waiting for the printer...";
+                await waitForSlotToSettle(JSON.parse(activeSlotIDsJSON), result.sent);
+            }
             applyBtn.disabled = false;
             applyBtn.innerText = origText;
             if (result.error) {

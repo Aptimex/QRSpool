@@ -432,16 +432,14 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, col
     try:
         response = _current.client.send_and_wait(message, timeout=COMMAND_TIMEOUT)
     except BambuMQTTError:
-        # The printer applies most settings without replying. Treating silence
-        # as failure would report false errors on changes that did land, so it
-        # is reported as success here — app.py re-reads the slots afterwards.
-        return True, ""
+        return False, (f"No response from printer within {COMMAND_TIMEOUT:.0f}s; the change may or may not have been applied")
 
     result = check_command_result(response)
     if not result["accepted"]:
         detail = result["description"] or f"err_code={result['err_code']}"
         return False, f"Printer rejected command: {detail}"
 
+    # Accepted, not yet applied. Printers take 5-10s to reflect a filament change, which is handled by the frontend polling /slots
     return True, ""
 
 

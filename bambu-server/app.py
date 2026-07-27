@@ -4,7 +4,6 @@ from flask_basicauth import BasicAuth
 import json
 import bambu
 import mqtt
-import time
 from threading import Timer
 from base64 import b64encode, b64decode
 
@@ -58,7 +57,6 @@ def connect():
         return
     _current_backend.connect()
     CONNECTED = True
-    time.sleep(3)
 
     if INACTIVITY_TIMEOUT > 0:
         T = Timer(INACTIVITY_TIMEOUT, disconnect)
@@ -247,11 +245,7 @@ def setFilament():
     if not good:
         return makeError(result)
 
-    # For some reason the printer won't return changed AMS data unless a new connection is established, so proactively disconnect
-    disconnect()
-
-    # Takes ~5s for new filament change to take effect, so proactively wait
-    time.sleep(5)
+    # A 200 here means the printer accepted the command, not that it has finished applying it; that usually takes 5-10 seconds
     return jsonify({"success": result})
 
 @app.route("/reconnect")

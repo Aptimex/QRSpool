@@ -4,8 +4,9 @@
 bambu-mqtt-comms @ git+https://github.com/Aptimex/bambu-mqtt-comms.git@8f3c824
 bambu-mqtt-generator @ git+https://github.com/Aptimex/bambu-mqtt-generator.git@96e6176
 
-# bambu.py backend, for printers with "enable_custom_libraries": false
-bambulabs_api==2.6.6
+# bambu.py backend, for printers with "enable_custom_libraries": false.
+# Temporarily pointing to my fork of 2.6.6 while waiting for this bugfix merge: https://github.com/BambuTools/bambulabs_api/pull/180
+bambulabs_api @ git+https://github.com/Aptimex/bambulabs_api.git@5296426
 
 blinker==1.9.0
 click==8.3.2

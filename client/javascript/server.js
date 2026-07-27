@@ -161,7 +161,12 @@ async function setFilamentSlot(IDs, colorHex, fType, brand, minTemp, maxTemp, co
     if (! response.ok) {
         return makeError("Server responded with code " + response.status);
     }
-    return response.json();
+    const body = await response.json();
+    // Carry the submitted values back for waitForSlotToSettle to recognise.
+    if (body && typeof body === "object") {
+        body.sent = data;
+    }
+    return body;
 }
 
 function getServerURL() {
@@ -213,6 +218,50 @@ async function serverGETjson(route) {
 
 async function getSlots() {
     return await serverGETjson("/slots");
+}
+
+// Wait for a write to show up in the slot, so the next render shows the applied values rather than the old ones.
+// /setFilament now returns as soon as the printer accepts/rejects the command, before the change is applied. This polls until the printer reports the change.
+// It settles on the first reading that both differs from the starting one AND shows at least one of the values we sent (ignoring blank/empty transition states).
+// Or gives up after 10s.
+async function waitForSlotToSettle(ids, sent = null, options = {}) {
+    const pollMs = options.pollMs || 1500;
+    const timeoutMs = options.timeoutMs || 10000;
+
+    const key = JSON.stringify(ids);
+    const norm = v => String(v ?? "").trim().toLowerCase();
+
+    // Reads the displayed fields of the target slot, or null if this poll could
+    // not tell us anything - a failed request or a slot the server did not list
+    // is an absence of information, not a state to compare against.
+    const readDisplayed = async () => {
+        try {
+            const data = await getSlots();
+            if (!data || !Array.isArray(data.slots)) return null;
+            const slot = data.slots.find(s => JSON.stringify(s.ids) === key);
+            if (!slot) return null;
+            const keys = Array.isArray(data.displayKeys) ? data.displayKeys : Object.keys(slot);
+            return keys.map(k => norm(slot[k]));
+        } catch (e) {
+            return null;
+        }
+    };
+
+    const submitted = !sent ? [] : Object.entries(sent)
+        .filter(([k, v]) => k !== "ids" && norm(v) !== "")
+        .map(([, v]) => norm(v));
+
+    const started = Date.now();
+    const initial = JSON.stringify(await readDisplayed());
+
+    while (Date.now() - started < timeoutMs) {
+        await new Promise(r => setTimeout(r, pollMs));
+        const current = await readDisplayed();
+        if (current === null) continue;
+
+        const changed = JSON.stringify(current) !== initial;
+        if (changed && submitted.some(v => current.includes(v))) return;
+    }
 }
 
 async function getServerStatus() {

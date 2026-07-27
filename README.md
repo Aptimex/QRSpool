@@ -98,12 +98,12 @@ sudo docker compose up --build -d
 This starts the server on port 5123 using HTTP only. Configuration files are mounted live from the `configs/` folder and persist across container restarts. If you ever change a config, just run `sudo docker compose restart` to reload them. 
 
 > [!NOTE]
-> The build installs two of its dependencies from GitHub rather than PyPI (see [3rd Party Dependencies](#3rd-party-dependencies)), so the machine needs internet access the first time you build. Docker caches that step, so a later `--build` will *not* pick up new versions of those two libraries — use `sudo docker compose build --no-cache` when you want to update them.
+> The build installs three of its dependencies from GitHub rather than PyPI (see [3rd Party Dependencies](#3rd-party-dependencies)), so the machine needs internet access the first time you build. Docker caches that step, so a later `--build` will *not* pick up new versions of those libraries — use `sudo docker compose build --no-cache` when you want to update them.
 
 <details>
 <summary>Running natively without Docker</summary>
 
-You'll need **git** installed as well as Python, because two of the requirements install from GitHub rather than PyPI (see [3rd Party Dependencies](#3rd-party-dependencies)). Using a virtual environment is recommended, and required on distributions that mark the system Python as externally managed.
+You'll need **git** installed as well as Python, because three of the requirements install from GitHub rather than PyPI (see [3rd Party Dependencies](#3rd-party-dependencies)). Using a virtual environment is recommended, and required on distributions that mark the system Python as externally managed.
 
 ```bash
 cd bambu-server/
@@ -530,6 +530,8 @@ Returns available filament slots. `ids` and `displayID` are mandatory per slot; 
 }
 ```
 
+This route returns once the printer has **accepted** the command, not (necessarily) once it has actually finished applying it. Bambu printers commonly take several seconds to reflect a filament change and may report the slot as empty until that finishes, so a server should not cause a delay waiting for that confirmation. The frontend is responsible for verifying success via the `/slots` route and accounting for this potential delay.
+
 Field values may be empty strings if data was omitted from the scanned tag. The server must silently ignore unknown keys, and may support more than these. Currently recommended optional fields for maximum compatibility:
 
 ```json
@@ -597,6 +599,6 @@ The server does not rate-limit bad authentication requests, so is potentially vu
 
 - [jsQR](https://github.com/cozmo/jsQR): QR code decoding from the camera feed (frontend)
 - [Bootstrap](https://getbootstrap.com/): UI framework (frontend)
-- [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2: Bambu printer communication (backend) for LAN-only printers — the default backend
+- [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2: The default Bambu printer communication (backend), for older-firmware LAN-only printers. **Temporarily installed from a [fork](https://github.com/Aptimex/bambulabs_api)** rather than PyPI, pending an [upstream fix](https://github.com/BambuTools/bambulabs_api/pull/180).
 - [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) + [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator): MQTT connection handling, payload generation and signing (backend) for printers using the experimental `enable_custom_libraries` mode. **Not published to PyPI** — `requirements.txt` installs them directly from GitHub, so pip needs `git` available. Both are installed regardless of whether any printer enables that mode.
 - [paho-mqtt](https://pypi.org/project/paho-mqtt/) and [cryptography](https://pypi.org/project/cryptography/): underlying MQTT transport and signing primitives, pulled in automatically by those two
