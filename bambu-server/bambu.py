@@ -4,6 +4,9 @@ import time
 import bambulabs_api as bl
 import json
 
+# bambulabs_api filament data is outdated
+from bambu_mqtt_generator import get_tray_type
+
 #local files
 from configs.config_loader import PRINTERS
 
@@ -24,6 +27,10 @@ def getModifierAbbreviations(path = "./configs/modifier-abbreviations.json"):
 getKnownFilaments()
 getTypeAbbreviations()
 getModifierAbbreviations()
+
+def trayTypeForCode(code, fallback="UNK"):
+    """The tray_type to announce for a filament code (to display on printer's AMS screen)"""
+    return get_tray_type(code) or fallback
 
 def _printer_name(idx, cfg):
     return cfg.get("name") or cfg.get("ip", f"Printer {idx+1}")
@@ -218,10 +225,12 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0,
     if not code:
         return False, "Unable to match brand and type with known Bambu codes"
 
-    newFilament = bl.AMSFilamentSettings(code, minTemp, maxTemp, fType)
-    hub = CURRENT_PRINTER.ams_hub()
+    trayType = trayTypeForCode(code, fType)
+
+    newFilament = bl.AMSFilamentSettings(code, minTemp, maxTemp, trayType)
     '''
     # Validating the IDs more often then not just results in false negatives due to the printer sometimes not returning all the info it should
+    hub = CURRENT_PRINTER.ams_hub()
     try:
         _ = hub[amsID]
     except KeyError as e:

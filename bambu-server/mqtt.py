@@ -482,14 +482,15 @@ def _build_filament_payload(code, colorHex, amsID, trayID, fType, minTemp, maxTe
             overrides["nozzle_temp_min"] = minTemp
         if maxTemp:
             overrides["nozzle_temp_max"] = maxTemp
-        if fType:
-            overrides["tray_type"] = fType
+        # tray_type is deliberately not overridden — build_filament_setting
+        # takes it from the preset.
         return builder.build_filament_setting(
             tray_info_idx=code, tray_color=color, ams_id=amsID, tray_id=trayID,
             **overrides,
         )
 
-    # Unknown filament id: supply everything explicitly.
+    # Unknown filament id: supply everything explicitly. No preset means no
+    # type to look up either, so fType is all there is to go on.
     is_external = amsID in EXTERNAL_SPOOL_AMS_IDS
     return builder.build_payload(
         "ams_filament_settings",
@@ -502,5 +503,5 @@ def _build_filament_payload(code, colorHex, amsID, trayID, fType, minTemp, maxTe
         tray_color=f"{colorHex.lstrip('#').upper()}FF",
         nozzle_temp_min=minTemp,
         nozzle_temp_max=maxTemp,
-        tray_type=fType,
+        tray_type=builder.get_tray_type(code) or fType,
     )
