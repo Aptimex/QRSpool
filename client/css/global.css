@@ -24,8 +24,19 @@ pre {
     background-color: lightgray;
     display: block;
     padding: 1rem;
+    padding-right: 5rem; /* keep content clear of the Copy button */
     position: relative;
     word-wrap: break-word;
+    overflow-wrap: anywhere;
+}
+
+/* Multi-line content (e.g. JSON blobs) inside a copy box */
+.copy-box pre {
+    background-color: transparent;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 20em;
+    overflow-y: auto;
 }
 
 .btn-clipboard {

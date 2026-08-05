@@ -1,90 +1,294 @@
 <!DOCTYPE html>
 <html class="h-100">
     <head>
-        <title>Settings</title>
+        <title>Tag Builder</title>
         <link rel="icon" href="media/logo-bgc.svg" sizes="any" type="image/svg+xml" />
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <script src="javascript/localStorage.js"></script>
         <script src="javascript/filament.js"></script>
+        <script src="javascript/server.js"></script>
         <script src="javascript/nav.js"></script>
 
         <link rel="stylesheet" href="./css/global.css">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
     </head>
-    
+
     <body class="d-flex flex-column h-100">
         <div id="navPlaceholder">
-            <script>insertNav(document.querySelector("#navPlaceholder"));</script>
+            <script>insertNav(document.querySelector("#navPlaceholder"), "#nav-tag");</script>
         </div>
 
         <main class="flex-shrink-0">
             <div class="container">
                 <p id="error"></p>
 
-                <form action="">
-                    <h1>Make Tag</h1>
+                <h1>Tag Builder</h1>
+                <p class="form-text mt-0">
+                    Build the two kinds of tag QRSpool scans: a <a href="#filament-tag">filament tag</a> for a spool,
+                    and a <a href="#slot-tag">slot tag</a> for an AMS slot. Tag data updates as you type; copy it into
+                    a QR code generator, or write it straight to an NFC tag.
+                </p>
+
+                <hr>
+
+                <h2 id="filament-tag">Filament Tag</h2>
+
+                <form onsubmit="return false;">
+                    <div class="mb-3">
+                        <label for="tagType" class="form-label">Type</label>
+                        <input type="text" class="form-control" id="tagType" placeholder="PLA Matte" oninput="refresh()">
+                        <div class="form-text">Must match a Bambu Studio filament profile name, e.g. <code>PLA Matte</code>.</div>
+                    </div>
 
                     <div class="mb-3">
-                        <label for="basic-url" class="form-label">Type</label>
+                        <label for="colorHex" class="form-label">Hex Color</label>
                         <div class="input-group">
-                            <input type="text" class="form-control" id="tagType" placeholder="PLA">
+                            <span class="input-group-text">#</span>
+                            <input type="text" class="form-control" id="colorHex" placeholder="1E8440"
+                                maxlength="7" autocapitalize="off" autocomplete="off" spellcheck="false"
+                                oninput="onColorTextInput()">
+                            <input type="color" class="form-control form-control-color" id="colorPicker"
+                                value="#1E8440" title="Pick a color" oninput="onColorPickerInput()">
+                        </div>
+                        <div class="form-text">Pick a color with the swatch, or type/paste a 6-digit hex value.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="brand" class="form-label">Brand</label>
+                        <input type="text" class="form-control" id="brand" placeholder="Bambu" oninput="refresh()">
+                    </div>
+
+                    <div class="row">
+                        <div class="col mb-3">
+                            <label for="minTemp" class="form-label">Min Temp (C)</label>
+                            <input type="number" class="form-control" id="minTemp" placeholder="190" min="0" oninput="refresh()">
+                        </div>
+                        <div class="col mb-3">
+                            <label for="maxTemp" class="form-label">Max Temp (C)</label>
+                            <input type="number" class="form-control" id="maxTemp" placeholder="230" min="0" oninput="refresh()">
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="basic-url" class="form-label">Hex Color</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="colorHex" placeholder="01AB23">
+                        <label for="label" class="form-label">Printed Label <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="label" rows="2" oninput="refresh()"></textarea>
+                        <div class="form-text">
+                            Text embossed on the 3D printed tag. Leave blank to use the auto-generated label
+                            (<span id="labelPreview" class="font-monospace"></span>).
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label for="basic-url" class="form-label">Brand</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="brand" placeholder="Bambu">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="basic-url" class="form-label">Min Temp (C)</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="minTemp" placeholder="190">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="basic-url" class="form-label">Max Temp (C)</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="maxTemp" placeholder="230">
-                        </div>
-                    </div>
-
-                    <button class="btn btn-primary" type="button" name="makeTag", onclick="buildTag()">Make Tag</button>
-                    <button class="btn btn-warning" type="button" name="makeTag", onclick="clearBuilder()">Clear Form</button>
-
+                    <button class="btn btn-primary" type="button" onclick="saveActiveTag()">Save as Active Tag</button>
+                    <button class="btn btn-secondary" type="button" onclick="loadActiveTag(true)">Load Active Tag</button>
+                    <button class="btn btn-warning" type="button" onclick="clearBuilder()">Clear Form</button>
+                    <div id="saveMsg" class="form-text mt-2"></div>
                 </form>
 
-                <h1>Current Tag Strings</h1>
-                <h2>QR String</h2>
+                <h3 class="h5 mt-4">OpenSpool 1.0 String</h3>
+                <p class="form-text mt-0">
+                    The QRSpool format. Put this in a QR code, or write it to an NFC tag as a plain text record.
+                </p>
                 <div class="copy-box">
-                    <p id="QR-string"></p>
-                    <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#QR-string')">Copy</button>
+                    <p id="QR-string" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#QR-string', this)">Copy</button>
                 </div>
 
-                <h2>OpenSpool JSON String</h2>
+                <h3 class="h5 mt-3">OpenSpool JSON</h3>
+                <p class="form-text mt-0">
+                    <a href="https://openspool.io/rfid.html#protocol" target="_blank" rel="noopener noreferrer">OpenSpool</a>
+                    tag contents. On an NFC tag this goes in an <code>application/json</code> record.
+                </p>
                 <div class="copy-box">
-                    <p id="OS-JSON"></p>
-                    <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#OS-JSON')">Copy</button>
+                    <p id="OS-JSON" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#OS-JSON', this)">Copy</button>
                 </div>
 
-                <h2>STL Generator</h2>
-                <a href="#" id="STL-anchor">Go to link</a>
+                <h3 class="h5 mt-3">QRSpool URL</h3>
+                <p class="form-text mt-0">
+                    Opens this site with the filament data pre-loaded. Use this for NFC tags on phones without
+                    in-browser NFC support (i.e. anything that isn't Chrome on Android).
+                </p>
                 <div class="copy-box">
-                    <p id="STL-link"></p>
-                    <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#STL-link')">Copy</button>
+                    <p id="QRSpool-URL" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#QRSpool-URL', this)">Copy</button>
                 </div>
+
+                <h3 class="h5 mt-3">QR2STL Settings</h3>
+                <p class="form-text mt-0">
+                    Generates a printable 3D QR code. Open
+                    <a href="https://qrcode2stl.printer.tools/" target="_blank" rel="noopener noreferrer">QR2STL</a>,
+                    click <b>Import/Export Settings</b> at the top right, paste this into the <b>Import</b> box, and
+                    click <b>Apply Settings</b>.
+                </p>
+                <div class="copy-box">
+                    <pre id="STL-JSON" class="mb-0"></pre>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#STL-JSON', this)">Copy</button>
+                </div>
+
+                <h3 class="h5 mt-4">Write to NFC Tag</h3>
+                <div id="nfc-unsupported" class="alert alert-warning" role="alert" hidden></div>
+
+                <p class="form-text mt-0">
+                    Choose which formats to write. Selecting more than one writes them as separate NDEF records on the
+                    same tag, in the order listed below, for maximum compatibility across phones and readers.
+                </p>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="nfc-url" checked onclick="refresh()">
+                    <label class="form-check-label" for="nfc-url">
+                        <b>URL record</b> &mdash; a qrspool.com link. Any phone can open it natively by tapping the tag.
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="nfc-os1" checked onclick="refresh()">
+                    <label class="form-check-label" for="nfc-os1">
+                        <b>Text record</b> &mdash; the OpenSpool 1.0 string, read by QRSpool's NFC scanner.
+                    </label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="nfc-osjson" onclick="refresh()">
+                    <label class="form-check-label" for="nfc-osjson">
+                        <b>OpenSpool record</b> &mdash; <code>application/json</code>, for OpenSpool-compatible readers.
+                    </label>
+                </div>
+
+                <div id="nfc-size" class="form-text mt-0"></div>
+
+                <div class="mt-2">
+                    <button class="btn btn-primary" type="button" id="btn-write-nfc" onclick="writeNFC('filament')">Write NFC Tag</button>
+                    <button class="btn btn-secondary" type="button" id="btn-cancel-nfc" onclick="cancelNFCWrite()" hidden>Cancel</button>
+                </div>
+                <div id="nfc-write-status" class="mt-2"></div>
+
+                <hr>
+
+                <h2 id="slot-tag">Slot Tag</h2>
+                <p class="form-text mt-0">
+                    Identifies an AMS slot, a printer, or both. Scanning one of these together with a filament tag
+                    applies that filament to the slot.
+                </p>
+
+                <form onsubmit="return false;">
+                    <div class="mb-3">
+                        <label for="slotPrinter" class="form-label">Printer Name <span class="text-muted">(optional)</span></label>
+                        <input type="text" class="form-control" id="slotPrinter" list="printerNames"
+                            placeholder="My Printer" autocomplete="off" oninput="refreshSlot()">
+                        <datalist id="printerNames"></datalist>
+                        <div class="form-text">
+                            Scanning the tag switches to this printer first. Must match a name from your server's
+                            <code>bambu_config.json</code>. Leave blank to target whichever printer is already active.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="slotPicker" class="form-label">Slot <span class="text-muted">(optional)</span></label>
+                        <select class="form-select" id="slotPicker" onchange="onSlotPicked()">
+                            <option value="">&mdash; none &mdash;</option>
+                        </select>
+                        <div class="form-text" id="slotPickerStatus"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="slotIDs" class="form-label">Slot IDs</label>
+                        <input type="text" class="form-control font-monospace" id="slotIDs"
+                            placeholder='{"amsID":0,"slotID":0}' autocomplete="off" spellcheck="false"
+                            oninput="onSlotIDsInput()">
+                        <div class="form-text">
+                            Filled in by the picker above. You can also paste it from the Apply page, under
+                            &ldquo;Show/Hide All Slot Info&rdquo; for any slot.
+                        </div>
+                        <div class="form-text text-danger" id="slotIDsError"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="slotLabel" class="form-label">Printed Label <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="slotLabel" rows="2" oninput="refreshSlot()"></textarea>
+                        <div class="form-text">
+                            Text embossed on the 3D printed tag. Leave blank to use the auto-generated label
+                            (<span id="slotLabelPreview" class="font-monospace"></span>).
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" type="button" onclick="saveActiveSlot()">Save as Active Slot</button>
+                    <button class="btn btn-warning" type="button" onclick="clearSlotBuilder()">Clear Form</button>
+                    <div id="slotSaveMsg" class="form-text mt-2"></div>
+                </form>
+
+                <h3 class="h5 mt-4">Slot String</h3>
+                <p class="form-text mt-0">
+                    Put this in a QR code, or write it to an NFC tag as a plain text record.
+                </p>
+                <div class="copy-box">
+                    <p id="SLOT-string" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#SLOT-string', this)">Copy</button>
+                </div>
+
+                <h3 class="h5 mt-3">QRSpool URL</h3>
+                <p class="form-text mt-0">
+                    Opens this site with the slot pre-selected. Use this for NFC tags on phones without in-browser
+                    NFC support.
+                </p>
+                <div class="copy-box">
+                    <p id="SLOT-URL" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#SLOT-URL', this)">Copy</button>
+                </div>
+
+                <h3 class="h5 mt-3">QR2STL Settings</h3>
+                <p class="form-text mt-0">
+                    Same import process as the filament tag above.
+                </p>
+                <div class="copy-box">
+                    <pre id="SLOT-STL-JSON" class="mb-0"></pre>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#SLOT-STL-JSON', this)">Copy</button>
+                </div>
+
+                <h3 class="h5 mt-4">Write to NFC Tag</h3>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="slot-nfc-url" checked onclick="refreshSlot()">
+                    <label class="form-check-label" for="slot-nfc-url">
+                        <b>URL record</b> &mdash; a qrspool.com link. Any phone can open it natively by tapping the tag.
+                    </label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="slot-nfc-text" checked onclick="refreshSlot()">
+                    <label class="form-check-label" for="slot-nfc-text">
+                        <b>Text record</b> &mdash; the slot string, read by QRSpool's NFC scanner.
+                    </label>
+                </div>
+
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="slot-nfc-combine" onclick="refreshSlot()">
+                    <label class="form-check-label" for="slot-nfc-combine">
+                        <b>Combined tag</b> &mdash; also include the filament data from above, so one tap applies that
+                        filament to this slot.
+                    </label>
+                </div>
+
+                <div id="slot-combined-url-wrap" hidden>
+                    <p class="form-text mt-2 mb-1">
+                        The combined link, if you'd rather write it yourself or put it in a QR code:
+                    </p>
+                    <div class="copy-box">
+                        <p id="SLOT-combined-URL" class="mb-0 font-monospace"></p>
+                        <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#SLOT-combined-URL', this)">Copy</button>
+                    </div>
+                </div>
+
+                <div id="slot-nfc-size" class="form-text mt-2"></div>
+
+                <div class="mt-2">
+                    <button class="btn btn-primary" type="button" id="btn-write-slot-nfc" onclick="writeNFC('slot')">Write NFC Tag</button>
+                    <button class="btn btn-secondary" type="button" id="btn-cancel-slot-nfc" onclick="cancelNFCWrite()" hidden>Cancel</button>
+                </div>
+                <div id="slot-nfc-write-status" class="mt-2"></div>
+
+                <p class="form-text mt-3">
+                    Web NFC only works in Chrome on Android, and only over HTTPS. Writing replaces everything already
+                    on the tag. Tags that are locked or read-only can't be written.
+                </p>
 
             </div>
         </main>
@@ -95,52 +299,455 @@
     </body>
 
     <script>
-        tag = parseActiveTag();
-        if (tag) {
-            document.querySelector("#tagType").value = tag.type;
-            document.querySelector("#colorHex").value = tag.colorHex;
-            document.querySelector("#brand").value = tag.brand;
-            document.querySelector("#minTemp").value = tag.minTemp;
-            document.querySelector("#maxTemp").value = tag.maxTemp;
+        const el = (sel) => document.querySelector(sel);
 
-            document.querySelector("#QR-string").innerText = tag.toQRString();
-            document.querySelector("#OS-JSON").innerText = tag.toOpenSpoolJSON();
+        // ----- Form <-> tag -----
 
-            document.querySelector("#STL-anchor").href = tag.toSTLLink();
-            document.querySelector("#STL-link").innerText = tag.toSTLLink();
+        // Build a tag from the current form values
+        function formTag() {
+            return new FilamentOpenSpool(
+                el("#tagType").value.trim(),
+                FilamentOpenSpool.normalizeColorHex(el("#colorHex").value),
+                el("#brand").value.trim(),
+                el("#minTemp").value.trim(),
+                el("#maxTemp").value.trim()
+            );
+        }
+
+        function formLabel() {
+            return el("#label").value.trim();
+        }
+
+        // Point URL tags at whichever copy of the site is being used, so self-hosted
+        // setups get their own address. Falls back to the public site for local testing.
+        function qrspoolBaseURL() {
+            let host = window.location.hostname;
+            if (!/^https?:$/.test(window.location.protocol) || host === "" || host === "localhost" || host === "127.0.0.1") {
+                return "https://qrspool.com/";
+            }
+            return window.location.origin + window.location.pathname.replace(/[^/]*$/, "");
+        }
+
+        function fillForm(tag) {
+            el("#tagType").value = tag.type ?? "";
+            el("#colorHex").value = FilamentOpenSpool.normalizeColorHex(tag.colorHex);
+            el("#brand").value = tag.brand ?? "";
+            el("#minTemp").value = tag.minTemp ?? "";
+            el("#maxTemp").value = tag.maxTemp ?? "";
+            syncColorPicker();
+            refresh();
         }
 
         function clearBuilder() {
-            document.querySelector("#tagType").value = "";
-            document.querySelector("#colorHex").value = "";
-            document.querySelector("#brand").value = "";
-            document.querySelector("#minTemp").value = "";
-            document.querySelector("#maxTemp").value = "";
+            el("#tagType").value = "";
+            el("#colorHex").value = "";
+            el("#brand").value = "";
+            el("#minTemp").value = "";
+            el("#maxTemp").value = "";
+            el("#label").value = "";
+            refresh();
         }
 
-        function buildTag() {
-            let type = document.querySelector("#tagType").value;
-            let color = document.querySelector("#colorHex").value;
-            let brand = document.querySelector("#brand").value;
-            let minTemp = document.querySelector("#minTemp").value;
-            let maxTemp = document.querySelector("#maxTemp").value;
-
-            tag = new FilamentOpenSpool(type, color, brand, minTemp, maxTemp);
-            tag.rawData = tag.toQRString();
-            console.log(tag);
-            if (tag != null) {
-                activateTag(tag);
-                window.location.href = "tag.html";
+        // Load whatever tag was last scanned/saved. Only complains about a missing
+        // tag when the user explicitly asked for it.
+        function loadActiveTag(explicit=false) {
+            if (getActiveTagData() == null) {
+                if (explicit) showSaveMsg("No active tag saved yet. Scan one, or build one here.");
+                return;
             }
-            else {
-                console.log("Error creating tag");
+            let tag = parseActiveTag(); // writes to #error if it can't be parsed
+            if (tag == null) return;
+            fillForm(tag);
+            if (explicit) showSaveMsg("Loaded the active tag.");
+        }
+
+        function saveActiveTag() {
+            let tag = formTag();
+            activateTag(tag);
+            showSaveMsg('Saved as the active tag. <a href="apply.html">Go to the Apply page</a> to write it to a slot.');
+        }
+
+        let saveMsgTimer = null;
+        function showSaveMsg(html) {
+            let msg = el("#saveMsg");
+            msg.innerHTML = html;
+            clearTimeout(saveMsgTimer);
+            saveMsgTimer = setTimeout(() => { msg.innerHTML = ""; }, 8000);
+        }
+
+        // ----- Color picker -----
+
+        function syncColorPicker() {
+            // Only follow complete values, so the swatch doesn't jump around mid-typing
+            let hex = el("#colorHex").value.trim().replace(/^#/, "");
+            if (/^[0-9A-Fa-f]{6}$/.test(hex)) el("#colorPicker").value = "#" + hex;
+        }
+
+        function onColorTextInput() {
+            // Tolerate a pasted leading "#", but keep it out of the field itself
+            let field = el("#colorHex");
+            if (field.value.startsWith("#")) field.value = field.value.slice(1);
+            syncColorPicker();
+            refresh();
+        }
+
+        function onColorPickerInput() {
+            el("#colorHex").value = el("#colorPicker").value.replace("#", "").toUpperCase();
+            refresh();
+        }
+
+        // ----- Outputs -----
+
+        function refresh() {
+            let tag = formTag();
+            let label = formLabel();
+
+            el("#QR-string").innerText = tag.toQRString();
+            el("#OS-JSON").innerText = tag.toOpenSpoolJSON();
+            el("#QRSpool-URL").innerText = tag.toQRSpoolURL(qrspoolBaseURL());
+            el("#STL-JSON").innerText = tag.toQR2STLJSON(label);
+            el("#labelPreview").innerText = tag.defaultLabel().replace(/\n/g, " / ") || "empty";
+
+            updateNFCSize("filament");
+            // A combined slot tag embeds the filament data, so it changes too
+            if (el("#slot-nfc-combine").checked) refreshSlot();
+        }
+
+        function toClipboard(selector, btn) {
+            navigator.clipboard.writeText(el(selector).innerText).then(() => {
+                const orig = btn.innerText;
+                btn.innerText = "Copied!";
+                setTimeout(() => { btn.innerText = orig; }, 1200);
+            });
+        }
+
+        // ----- Slot tag -----
+
+        // displayID of the slot chosen from the picker, used for the default label.
+        // Cleared when the IDs are edited by hand, since it no longer describes them.
+        var pickedSlotDisplayID = null;
+
+        // Parsed contents of the Slot IDs field: {ids: <object|null>, error: <bool>}
+        function parseSlotIDs() {
+            let text = el("#slotIDs").value.trim();
+            if (text === "") return { ids: null, error: false };
+            try {
+                let ids = JSON.parse(text);
+                if (ids === null || typeof ids !== "object" || Array.isArray(ids)) {
+                    return { ids: null, error: true };
+                }
+                return { ids: ids, error: false };
+            } catch (e) {
+                return { ids: null, error: true };
             }
         }
 
-        function toClipboard(selector) {
-            let text = document.querySelector(selector).innerText;
-            navigator.clipboard.writeText(text);
+        function slotFormTag() {
+            return new SlotTag(parseSlotIDs().ids, el("#slotPrinter").value.trim(), pickedSlotDisplayID);
         }
+
+        function onSlotPicked() {
+            let opt = el("#slotPicker").selectedOptions[0];
+            if (opt && opt.value !== "") {
+                el("#slotIDs").value = opt.value;
+                pickedSlotDisplayID = opt.dataset.displayID;
+            }
+            refreshSlot();
+        }
+
+        function onSlotIDsInput() {
+            // Keep the picker in sync if the text happens to match one of its options
+            let match = [...el("#slotPicker").options].find(o => o.value !== "" && o.value === el("#slotIDs").value.trim());
+            el("#slotPicker").value = match ? match.value : "";
+            pickedSlotDisplayID = match ? match.dataset.displayID : null;
+            refreshSlot();
+        }
+
+        function clearSlotBuilder() {
+            el("#slotPrinter").value = "";
+            el("#slotIDs").value = "";
+            el("#slotPicker").value = "";
+            el("#slotLabel").value = "";
+            pickedSlotDisplayID = null;
+            refreshSlot();
+        }
+
+        function saveActiveSlot() {
+            let parsed = parseSlotIDs();
+            if (parsed.ids == null) {
+                showSlotSaveMsg("Enter or pick a slot ID first.");
+                return;
+            }
+            setActiveSlotIDs(JSON.stringify(parsed.ids));
+            showSlotSaveMsg('Saved as the active slot. <a href="apply.html">Go to the Apply page</a> to use it.');
+        }
+
+        let slotSaveMsgTimer = null;
+        function showSlotSaveMsg(html) {
+            let msg = el("#slotSaveMsg");
+            msg.innerHTML = html;
+            clearTimeout(slotSaveMsgTimer);
+            slotSaveMsgTimer = setTimeout(() => { msg.innerHTML = ""; }, 8000);
+        }
+
+        // Populate the slot and printer pickers from the configured backend. Everything
+        // stays usable without a server; the IDs just have to be pasted in by hand.
+        async function loadSlotOptions() {
+            let status = el("#slotPickerStatus");
+            if (!getServerURL()) {
+                status.innerText = "No backend server configured, so slots can't be listed. Enter the IDs by hand below.";
+                return;
+            }
+
+            status.innerText = "Loading slots from the active printer...";
+            const [slotsResp, printersResp, activeResp] = await Promise.all([
+                getSlots(), getPrinters(), getActivePrinter()
+            ]);
+
+            if (!printersResp.error && Array.isArray(printersResp)) {
+                let list = el("#printerNames");
+                printersResp.forEach(name => {
+                    let opt = document.createElement("option");
+                    opt.value = name;
+                    list.appendChild(opt);
+                });
+            }
+
+            if (slotsResp.error) {
+                status.innerText = "Couldn't load slots: " + slotsResp.error;
+                return;
+            }
+
+            let picker = el("#slotPicker");
+            (slotsResp.slots || []).forEach(slot => {
+                let opt = document.createElement("option");
+                opt.value = JSON.stringify(slot.ids);
+                opt.dataset.displayID = slot.displayID;
+                opt.textContent = slot.displayID;
+                picker.appendChild(opt);
+            });
+
+            // Slots are only ever reported for the active printer, so building tags for
+            // a different one means switching first (which takes a few seconds).
+            let activeName = activeResp.error ? null : activeResp.name;
+            status.innerText = activeName
+                ? `Showing slots for "${activeName}". To build tags for another printer, switch to it on the Settings page.`
+                : "Showing slots for the active printer.";
+        }
+
+        function refreshSlot() {
+            let parsed = parseSlotIDs();
+            el("#slotIDsError").innerText = parsed.error
+                ? "Not valid JSON. Paste the value exactly as copied from the Apply page."
+                : "";
+
+            let tag = slotFormTag();
+            // Bad JSON must block the tag rather than quietly degrading to a
+            // printer-only one, which isn't what the user asked for
+            let usable = tag.isUsable() && !parsed.error;
+            let label = el("#slotLabel").value.trim();
+
+            el("#slotLabelPreview").innerText = tag.defaultLabel().replace(/\n/g, " / ") || "empty";
+
+            if (usable) {
+                el("#SLOT-string").innerText = tag.toQRString();
+                el("#SLOT-URL").innerText = tag.toQRSpoolURL(qrspoolBaseURL());
+                el("#SLOT-STL-JSON").innerText = tag.toQR2STLJSON(label);
+            } else {
+                let hint = parsed.error
+                    ? "Fix the slot IDs above."
+                    : "Pick a slot or enter a printer name above.";
+                el("#SLOT-string").innerText = hint;
+                el("#SLOT-URL").innerText = hint;
+                el("#SLOT-STL-JSON").innerText = hint;
+            }
+
+            let combine = el("#slot-nfc-combine").checked;
+            el("#slot-combined-url-wrap").hidden = !combine;
+            if (combine) {
+                el("#SLOT-combined-URL").innerText = usable
+                    ? qrspoolURL(qrspoolBaseURL(), formTag(), tag)
+                    : "Pick a slot or enter a printer name above.";
+            }
+
+            updateNFCSize("slot");
+        }
+
+        // ----- NFC writing -----
+
+        function nfcSupported() {
+            return ("NDEFReader" in window);
+        }
+
+        // Each writable section of the page maps to its own controls and record set
+        const nfcSections = {
+            filament: {
+                size: "#nfc-size", status: "#nfc-write-status",
+                write: "#btn-write-nfc", cancel: "#btn-cancel-nfc",
+                records: buildFilamentRecords
+            },
+            slot: {
+                size: "#slot-nfc-size", status: "#slot-nfc-write-status",
+                write: "#btn-write-slot-nfc", cancel: "#btn-cancel-slot-nfc",
+                records: buildSlotRecords
+            }
+        };
+
+        function buildFilamentRecords() {
+            let tag = formTag();
+            let records = [];
+            // Order matters: most phones only act on the first record when the tag is
+            // tapped outside of QRSpool, so the URL goes first.
+            if (el("#nfc-url").checked) {
+                records.push({ recordType: "url", data: tag.toQRSpoolURL(qrspoolBaseURL()) });
+            }
+            if (el("#nfc-os1").checked) {
+                records.push({ recordType: "text", data: tag.toQRString() });
+            }
+            if (el("#nfc-osjson").checked) {
+                records.push({
+                    recordType: "mime",
+                    mediaType: "application/json",
+                    data: new TextEncoder().encode(tag.toOpenSpoolJSON())
+                });
+            }
+            return records;
+        }
+
+        function buildSlotRecords() {
+            let slotTag = slotFormTag();
+            if (!slotTag.isUsable() || parseSlotIDs().error) return [];
+
+            let combine = el("#slot-nfc-combine").checked;
+            let filamentTag = combine ? formTag() : null;
+            let records = [];
+
+            if (el("#slot-nfc-url").checked) {
+                records.push({ recordType: "url", data: qrspoolURL(qrspoolBaseURL(), filamentTag, slotTag) });
+            }
+            if (el("#slot-nfc-text").checked) {
+                // Filament first, matching the order the scanner applies a pair in
+                if (filamentTag != null) {
+                    records.push({ recordType: "text", data: filamentTag.toQRString() });
+                }
+                records.push({ recordType: "text", data: slotTag.toQRString() });
+            }
+            return records;
+        }
+
+        // Rough NDEF message size, to compare against a tag's capacity before writing
+        function estimateNFCSize(records) {
+            const utf8Len = (s) => new TextEncoder().encode(s).length;
+            let total = 2; // TLV header + terminator
+            for (const r of records) {
+                let payload, typeLen;
+                if (r.recordType === "url") {
+                    typeLen = 1;
+                    // A known scheme prefix is stored as a single identifier byte
+                    let prefix = ["https://www.", "http://www.", "https://", "http://"].find(p => r.data.startsWith(p)) || "";
+                    payload = 1 + utf8Len(r.data) - prefix.length;
+                } else if (r.recordType === "text") {
+                    typeLen = 1;
+                    payload = 3 + utf8Len(r.data); // status byte + 2-char language code
+                } else {
+                    typeLen = utf8Len(r.mediaType);
+                    payload = r.data.length;
+                }
+                total += 3 + typeLen + payload + (payload > 255 ? 3 : 0);
+            }
+            return total;
+        }
+
+        function updateNFCSize(section) {
+            let records = nfcSections[section].records();
+            let sizeEl = el(nfcSections[section].size);
+            if (records.length === 0) {
+                sizeEl.innerText = "Nothing to write yet.";
+                sizeEl.className = "form-text mt-2 text-danger";
+                return;
+            }
+
+            let bytes = estimateNFCSize(records);
+            let fits = bytes <= 144 ? "fits an NTAG213 (144 bytes)"
+                : bytes <= 504 ? "too big for an NTAG213 (144 bytes), fits an NTAG215 (504 bytes)"
+                : bytes <= 888 ? "needs an NTAG216 (888 bytes) or larger"
+                : "larger than an NTAG216 (888 bytes); deselect a record type or shorten the fields";
+
+            sizeEl.innerText = `${records.length} record${records.length > 1 ? "s" : ""}, roughly ${bytes} bytes: ${fits}.`;
+            sizeEl.className = "form-text mt-2" + (bytes > 504 ? " text-danger" : "");
+        }
+
+        function setNFCStatus(section, text, cls="") {
+            let s = el(nfcSections[section].status);
+            s.innerText = text;
+            s.className = "mt-2 " + cls;
+        }
+
+        // Only one write can be pending at a time, so both sections share the controller
+        var nfcWriteAbort = null;
+
+        function setWriteBusy(busy, activeSection=null) {
+            for (const [name, s] of Object.entries(nfcSections)) {
+                el(s.write).disabled = busy || !nfcSupported();
+                el(s.cancel).hidden = !(busy && name === activeSection);
+            }
+        }
+
+        async function writeNFC(section) {
+            if (!nfcSupported() || nfcWriteAbort != null) return;
+
+            let records = nfcSections[section].records();
+            if (records.length === 0) {
+                setNFCStatus(section, "Nothing to write. Fill in the fields and select a record type.", "text-danger");
+                return;
+            }
+
+            nfcWriteAbort = new AbortController();
+            setWriteBusy(true, section);
+            setNFCStatus(section, "Hold an NFC tag against your phone...", "pulsing-text");
+
+            try {
+                const ndef = new NDEFReader();
+                await ndef.write({ records: records }, { overwrite: true, signal: nfcWriteAbort.signal });
+                setNFCStatus(section, "Tag written successfully.", "text-success");
+                if (navigator.vibrate) navigator.vibrate([80, 50, 80]);
+
+            } catch (error) {
+                if (error.name === "AbortError") {
+                    setNFCStatus(section, "Write cancelled.");
+                } else {
+                    console.log(error);
+                    setNFCStatus(section, "Write failed: " + error, "text-danger");
+                }
+
+            } finally {
+                nfcWriteAbort = null;
+                setWriteBusy(false);
+            }
+        }
+
+        function cancelNFCWrite() {
+            if (nfcWriteAbort != null) nfcWriteAbort.abort();
+        }
+
+        function checkNFCSupport() {
+            if (nfcSupported()) return;
+
+            let warning = el("#nfc-unsupported");
+            warning.innerText = window.isSecureContext
+                ? "Your browser doesn't support Web NFC, so tags can't be written here. Web NFC is currently only available in Chrome on Android; use an app like NFC Tools to write the data on this page by hand."
+                : "Web NFC requires HTTPS. Load this page over HTTPS (or on localhost) in Chrome on Android to write tags directly.";
+            warning.hidden = false;
+            setWriteBusy(false);
+        }
+
+        // ----- Init -----
+
+        checkNFCSupport();
+        loadActiveTag();
+        refresh();
+        refreshSlot();
+        loadSlotOptions();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
 </html>

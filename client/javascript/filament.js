@@ -1,3 +1,75 @@
+// Percent-encode tag data for a URL parameter. The field delimiter is left alone
+// because it's the most recognizable part of these strings and is safe in practice.
+function encodeTagParam(data) {
+    return encodeURIComponent(data).replaceAll("%7C", "|");
+}
+
+// Build a qrspool.com link that pre-loads the given tags. Passing both a filament
+// tag and a slot tag produces a combined link that applies the pair in one step.
+// Filament comes first so the scan page stores it before acting on the slot.
+function qrspoolURL(base, ...tags) {
+    let params = tags.filter(t => t != null).map(t => t.toURLParam()).join("&");
+    return base + "?" + params;
+}
+
+// Settings blob for https://qrcode2stl.printer.tools/, pasted into that site's
+// "Import/Export Settings" dialog. Values mirror qr2stl.json in the repo root.
+function qr2stlSettings(text, label="") {
+    return {
+        "mode": "QR",
+        "options": {
+            "activeTabIndex": 0,
+            "errorCorrectionLevel": "L",
+            "useEscapeSequences": false,
+            "text": text,
+            "base": {
+                "shape": "roundedRectangle",
+                "width": 30,
+                "height": 30,
+                "depth": 1,
+                "cornerRadius": 2,
+                "hasBorder": false,
+                "borderWidth": 2,
+                "borderDepth": 1,
+                "hasText": true,
+                "textPlacement": "bottom",
+                "textMargin": 1.2,
+                "textSize": 3,
+                "textMessage": label,
+                "textDepth": 0.4,
+                "textAlign": "center",
+                "hasKeychainAttachment": true,
+                "keychainPlacement": "top",
+                "keychainHoleDiameter": 5,
+                "keychainMaterialThickness": 1,
+                "keychainOffset": 3,
+                "mirrorHoles": false,
+                "hasNfcIndentation": false,
+                "nfcIndentationShape": "square",
+                "nfcIndentationSize": 30,
+                "nfcIndentationDepth": 1,
+                "nfcIndentationHidden": false
+            },
+            "code": {
+                "depth": 0.4,
+                "margin": 1.2,
+                "blockSizeMultiplier": 100,
+                "iconName": "none",
+                "iconSizeRatio": 20,
+                "iconShapes": null,
+                "cityMode": false,
+                "depthMax": 5,
+                "invert": false,
+                "compatibilityMode": false
+            }
+        }
+    };
+}
+
+function qr2stlJSON(text, label="") {
+    return JSON.stringify(qr2stlSettings(text, label), null, 2);
+}
+
 // Example QR data format: OS1.0|PLA|0a2b3c|SomeBrand|210|230
 class FilamentOpenSpool {
     static protocol = "OS";
@@ -177,24 +249,53 @@ class FilamentOpenSpool {
         return str;
     }
 
-    toOpenSpoolJSON() {
-        let str = "{";
-        str += '"protocol":"openspool",';
-        str += '"type":"' + this.type + '",';
-        str += '"color_hex":"' + this.colorHex + '",';
-        str += '"brand":"' + this.brand + '",';
-        str += '"min_temp":"' + this.minTemp + '",';
-        str += '"max_temp":"' + this.maxTemp + '"';
-        str += "}";
-        return str;
+    // OpenSpool tag contents; written to NFC tags as an "application/json" MIME record
+    toOpenSpoolJSON(pretty=false) {
+        let obj = {
+            "protocol": "openspool",
+            "version": FilamentOpenSpool.version,
+            "type": "" + this.type,
+            "color_hex": "" + this.colorHex,
+            "brand": "" + this.brand,
+            "min_temp": "" + this.minTemp,
+            "max_temp": "" + this.maxTemp
+        };
+        return JSON.stringify(obj, null, pretty ? 4 : 0);
     }
 
-    toSTLLink() {
-        let s = "https://printer.tools/qrcode2stl/#shareQR-";
-        let qrstring = this.toQRString();
-        let json = `{"errorCorrectionLevel":"L","text":"${qrstring}","base":{"width":30,"height":30,"depth":1,"cornerRadius":2,"hasBorder":false,"hasText":true,"textMargin":1.2,"textSize":3,"textMessage":"${this.brand} ${this.type}\\n#${this.colorHex}","textDepth":0.4,"hasKeychainAttachment":true,"keychainPlacement":"top","keychainHoleDiameter":5},"code":{"depth":0.4,"margin":1.2}}`;
-        console.log(json);
-        return s + btoa(json);
+    toURLParam() {
+        return "qrstring=" + encodeTagParam(this.toQRString());
+    }
+
+    // A qrspool.com link that pre-loads this filament data. Useful as an NFC URL
+    // record, which any phone can open natively without in-browser NFC support.
+    toQRSpoolURL(base="https://qrspool.com/") {
+        return qrspoolURL(base, this);
+    }
+
+    // Default label to emboss on a 3D printed tag
+    defaultLabel() {
+        let name = [this.brand, this.type].filter(s => s).join(" ");
+        let color = this.colorHex ? "#" + this.colorHex : "";
+        return [name, color].filter(s => s).join("\n");
+    }
+
+    toQR2STLSettings(label=null) {
+        return qr2stlSettings(this.toQRString(), label || this.defaultLabel());
+    }
+
+    toQR2STLJSON(label=null) {
+        return qr2stlJSON(this.toQRString(), label || this.defaultLabel());
+    }
+
+    // Trim a color to the 6-digit uppercase hex the tag formats expect.
+    // Accepts an optional leading "#" and 3-digit shorthand. Returns "" if unusable.
+    static normalizeColorHex(color) {
+        let c = ("" + (color || "")).trim().replace(/^#/, "");
+        if (/^[0-9A-Fa-f]{3}$/.test(c)) {
+            c = c.split("").map(ch => ch + ch).join("");
+        }
+        return /^[0-9A-Fa-f]{6}$/.test(c) ? c.toUpperCase() : "";
     }
 }
 
@@ -353,9 +454,16 @@ class SlotTag {
     static PROTOCOL = "SLOT";
     static DELIM = "|";
 
-    constructor(ids, printer_name) {
+    constructor(ids, printer_name, displayID=null) {
         this.ids = ids || null;
         this.printer_name = printer_name || null;
+        // Human-readable slot name, used for labels only. Never part of the tag data.
+        this.displayID = displayID || null;
+    }
+
+    // A tag needs at least one of the two fields to have any effect when scanned
+    isUsable() {
+        return this.ids != null || this.printer_name != null;
     }
 
     static isValidFormat(data) {
@@ -389,6 +497,27 @@ class SlotTag {
 
     toQRString() {
         return SlotTag.PROTOCOL + SlotTag.DELIM + (this.ids ? JSON.stringify(this.ids) : "") + SlotTag.DELIM + (this.printer_name || "");
+    }
+
+    toURLParam() {
+        return "slotstring=" + encodeTagParam(this.toQRString());
+    }
+
+    toQRSpoolURL(base="https://qrspool.com/") {
+        return qrspoolURL(base, this);
+    }
+
+    // Default label to emboss on a 3D printed tag
+    defaultLabel() {
+        return [this.printer_name, this.displayID].filter(s => s).join("\n");
+    }
+
+    toQR2STLSettings(label=null) {
+        return qr2stlSettings(this.toQRString(), label || this.defaultLabel());
+    }
+
+    toQR2STLJSON(label=null) {
+        return qr2stlJSON(this.toQRString(), label || this.defaultLabel());
     }
 }
 

@@ -146,6 +146,8 @@ If you have multiple printers configured, you can manually change the active pri
 
 ## Creating Tags
 
+The **[Tag Builder](https://qrspool.com/tag.html)** page (dropdown on the top nav bar) generates everything below from a single form, for both filament and slot tags: fill in the details, then copy out the tag string, the OpenSpool JSON, a pre-loaded qrspool.com URL, or a ready-to-import QR2STL settings blob. On Android with Chrome it can also write the data straight to an NFC tag. If a backend server is configured, the slot section lists your printer's actual slots in a dropdown so you don't have to copy IDs around by hand.
+
 ### Filament QR Codes
 
 Filament tags use a compact pipe-delimited format derived from [OpenSpool 1.0](https://openspool.io/rfid.html):
@@ -192,7 +194,7 @@ SLOT||My Printer
 
 The printer name must be the same value that you configured in the `bambu_config.json` file.
 
-To find the correct `ids` value for a slot, open the Apply page and expand the "↓ Show/Hide All Slot Info ↓" section under any slot. Then just tap/click the value to copy it. 
+The easiest way to build one of these is the Tag Builder page, which lists your printer's slots in a dropdown. To find an `ids` value manually, open the Apply page and expand the "↓ Show/Hide All Slot Info ↓" section under any slot, then tap/click the value to copy it. 
 
 > [!WARNING]
 > Slot IDs are assigned by the printer itself and can change with firmware updates or AMS hardware changes (such as adding or removing a daisy-chained unit). Double-check that all your codes/tags still reference the expected slots after changes to any of those configurations. 
@@ -202,6 +204,8 @@ If you have multiple printers configured, only one printer is "active" at a time
 ### Printing Your Tags
 
 [QR2STL](https://qrcode2stl.printer.tools/) generates printable 3D QR codes. A self-hostable fork (with ads and wait times removed) is also [available here](https://github.com/Aptimex/qrcode2stl). Additionally, [here's a JSON file](qr2stl.json) with good starting values that you can import into the site. Use the "Import/Export Settings" button at the top-right of the webpage to do so. 
+
+The Tag Builder page produces that same settings blob with your filament's data and label already filled in, so you can paste it straight into that dialog and generate the model.
 
 Tips for reliable scanning:
 - **30×30mm** with a 0.4mm nozzle works well; smaller dimensions need a 0.2mm nozzle
@@ -224,10 +228,15 @@ A custom clip with multiple attachment options for filament spools [is available
 
 QRSpool currently supports several different NFC formats:
 - Tags containing the same plain text string as a QR code
-- [OpenSpool](https://openspool.io/rfid.html#protocol) tags
+- [OpenSpool](https://openspool.io/rfid.html#protocol) tags (an `application/json` record)
 - [OpenTag3D](https://opentag3d.info/spec) tags; but see [OpenTag3D Field Length Limits](#opentag3d-field-length-limits) for important notes if you're using OpenTag3D with a Bambu printer
+- URL records pointing at qrspool.com with filament and/or slot data in the [URL parameters](#url-parameters)
 
-To write tags, use a general-purpose NFC app like [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter). If yout want to use OpenTag34, you can instead use the [OpenTag3D Make tab](https://opentag3d.info/make), which may be easier. Native tag-writing functionality similar to that site will be added to QRSpool.com at some point in the future. 
+**Writing tags from QRSpool:** on Android with Chrome, the [Tag Builder](https://qrspool.com/tag.html) page writes both filament and slot tags directly. Pick which formats to include, hold a tag against your phone, and it's written. Each selected format becomes its own NDEF record on the same tag, so one tag can serve both native phone handling and QRSpool's dedicated NFC scanner. The page also shows an approximate byte count so you can tell whether your selection will fit on the tag you're using.
+
+**Combined tags:** the slot section has a *Combined tag* switch that folds the filament data into the slot tag, so a single tap applies that filament to that slot with no second scan. I haven't come across a real use case for this yet, but it's supported.
+
+To write tags from another device, or to write OpenTag3D tags, use a general-purpose NFC app like [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter), and copy the tag data out of the Tag Builder page. If you want to use OpenTag3D, you can instead use the [OpenTag3D Make tab](https://opentag3d.info/make).
 
 **On iOS (and any phone without in-browser NFC):** Use URL-based NFC tags. [NFC Tools](https://apps.apple.com/us/app/nfc-tools/id1252962749) and [NFC TagWriter](https://apps.apple.com/us/app/nfc-tagwriter-by-nxp/id1246143221) are also available in iOS for this purpose. A tag containing a URL like this will open the site with filament data pre-loaded when tapped, and does not require you to already have the website/browser open.
 
@@ -248,7 +257,7 @@ https://qrspool.com?qrstring=OS1.0|PLA|FF5733|Bambu|190|230&slotstring=SLOT|{"am
 ```
 
 > [!TIP]
-> NFC tags support multiple NDEF records. You can set the first record to a URL (for native smartphone handling) and the second to a plain-text QR string, or one of the other supported formats. Most native phone scans will only process the first record (the URL), while QRSpool.com will parse all records (recognizing the second record), giving you maximum compatibility with both approaches across all phones in one tag.
+> NFC tags support multiple NDEF records. You can set the first record to a URL (for native smartphone handling) and the second to a plain-text QR string, or one of the other supported formats. Most native phone scans will only process the first record (the URL), while QRSpool.com works through the records in order and uses the first one it recognizes, giving you maximum compatibility with both approaches across all phones in one tag. The Tag Builder page writes tags in exactly this layout.
 
 See also the [URL Parameters](#url-parameters) section for additional supported URL formats available for power users. 
 
@@ -290,7 +299,7 @@ QRSpool's frontend and backend are intentionally decoupled: the frontend handles
 
 ### URL Parameters
 
-The scan page accepts pre-loaded data via URL parameters, checked in this order:
+The scan page accepts pre-loaded data via URL parameters:
 
 | Parameter | Format |
 |---|---|
@@ -298,6 +307,8 @@ The scan page accepts pre-loaded data via URL parameters, checked in this order:
 | `?osjson=X` | OpenSpool JSON string (no line breaks) |
 | `?type=A&color_hex=B&brand=C&min_temp=D&max_temp=E` | Individual OpenSpool fields (`type` key required) |
 | `?slotstring=X` | Same string as a slot QR code, including the `SLOT` prefix |
+
+One filament parameter (`qrstring`, `osjson`, or the individual fields) and `slotstring` can be combined in a single URL to apply a pair in one step. The filament half is stored first, so the slot half decides when the pair is complete. Values should be percent-encoded; the `|` delimiter is safe to leave as-is.
 
 ### OpenTag3D Field Length Limits
 
