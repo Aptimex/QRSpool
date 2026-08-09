@@ -11,8 +11,11 @@
         <script src="javascript/server.js"></script>
         <script src="javascript/nav.js"></script>
 
+        <script src="vendor/pickr/pickr.min.js"></script>
+
         <link rel="stylesheet" href="./css/global.css">
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
+        <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+        <link href="vendor/pickr/monolith.min.css" rel="stylesheet">
     </head>
 
     <body class="d-flex flex-column h-100">
@@ -49,10 +52,11 @@
                             <input type="text" class="form-control" id="colorHex" placeholder="1E8440"
                                 maxlength="7" autocapitalize="off" autocomplete="off" spellcheck="false"
                                 oninput="onColorTextInput()">
-                            <input type="color" class="form-control form-control-color" id="colorPicker"
-                                value="#1E8440" title="Pick a color" oninput="onColorPickerInput()">
+                            <span class="input-group-text p-1">
+                                <button type="button" id="colorPickerBtn" title="Pick a color"></button>
+                            </span>
                         </div>
-                        <div class="form-text">Pick a color with the swatch, or type/paste a 6-digit hex value.</div>
+                        <div class="form-text">Pick a suggested or custom color with the swatch, or type/paste a 6-digit hex value.</div>
                     </div>
 
                     <div class="mb-3">
@@ -334,7 +338,7 @@
             el("#brand").value = tag.brand ?? "";
             el("#minTemp").value = tag.minTemp ?? "";
             el("#maxTemp").value = tag.maxTemp ?? "";
-            syncColorPicker();
+            syncColorPickr();
             refresh();
         }
 
@@ -376,23 +380,55 @@
         }
 
         // ----- Color picker -----
+        // https://github.com/simonwep/pickr
 
-        function syncColorPicker() {
+        const colorPickr = Pickr.create({
+            el: "#colorPickerBtn",
+            theme: "monolith",
+            default: "#1E8440",
+            swatches: ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF", "#8F00FF", "#FF69B4", "#000000", "#FFFFFF", "#8B4513"],
+            components: {
+                preview: true,
+                opacity: false,
+                hue: true,
+                interaction: {
+                    input: true,
+                    save: true
+                }
+            }
+        });
+
+        colorPickr.on("save", (color, instance) => {
+            // Only commit to the hex field once the user confirms with Save, not on every
+            // drag/hover change within the popup
+            if (color) {
+                el("#colorHex").value = color.toHEXA().toString().replace("#", "");
+                refresh();
+            }
+            instance.hide();
+        }).on("init", () => {
+            // Pickr finishes setting up (and applies its own default color) asynchronously,
+            // after this script runs. Re-sync once it's ready so a tag loaded on page init
+            // (see loadActiveTag() below) isn't clobbered by that default.
+            syncColorPickr();
+        });
+
+        function syncColorPickr() {
             // Only follow complete values, so the swatch doesn't jump around mid-typing
             let hex = el("#colorHex").value.trim().replace(/^#/, "");
-            if (/^[0-9A-Fa-f]{6}$/.test(hex)) el("#colorPicker").value = "#" + hex;
+            if (!/^[0-9A-Fa-f]{6}$/.test(hex)) return;
+
+            colorPickr.setColor("#" + hex, true);
+            // setColor's "silent" flag skips applyColor(), which is what actually paints
+            // the swatch button's background, so it has to be called separately here.
+            colorPickr.applyColor(true);
         }
 
         function onColorTextInput() {
             // Tolerate a pasted leading "#", but keep it out of the field itself
             let field = el("#colorHex");
             if (field.value.startsWith("#")) field.value = field.value.slice(1);
-            syncColorPicker();
-            refresh();
-        }
-
-        function onColorPickerInput() {
-            el("#colorHex").value = el("#colorPicker").value.replace("#", "").toUpperCase();
+            syncColorPickr();
             refresh();
         }
 
@@ -735,7 +771,7 @@
 
             let warning = el("#nfc-unsupported");
             warning.innerText = window.isSecureContext
-                ? "Your browser doesn't support Web NFC, so tags can't be written here. Web NFC is currently only available in Chrome on Android; use an app like NFC Tools to write the data on this page by hand."
+                ? "Your browser doesn't support Web NFC, so tags can't be written here. Web NFC is currently only available in Chrome on Android; use an app like NFC Tools to manually write this data to a tag."
                 : "Web NFC requires HTTPS. Load this page over HTTPS (or on localhost) in Chrome on Android to write tags directly.";
             warning.hidden = false;
             setWriteBusy(false);
@@ -749,5 +785,5 @@
         refreshSlot();
         loadSlotOptions();
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
+    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 </html>

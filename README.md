@@ -127,7 +127,7 @@ Go to the **Scan** tab and grant camera and/or NFC access as prompted. Now you'r
 > [!TIP]
 > Firefox and Safari also support QR scanning, but lack torch (flashlight) control, vibrate-on-scan, and NFC scanning. Chrome on Android is recommended for the full experience.
 
-**Prefer to host the frontend yourself?** Serve the `client/` folder with any web server - for example, `python3 -m http.server` or the included `https-server.py` script. For fully offline use, download the Bootstrap and jsQR files referenced in each HTML file and update the references in the code to point to your local copies.
+**Prefer to host the frontend yourself?** Serve the `client/` folder with any web server - for example, `python3 -m http.server` or the included `https-server.py` script. All 3rd-party frontend libraries are already vendored under `client/vendor/`, so no CDN access is required.
 
 ---
 
@@ -460,4 +460,5 @@ The server does not rate-limit bad authentication requests, so is potentially vu
 
 - [jsQR](https://github.com/cozmo/jsQR): QR code decoding from the camera feed (frontend)
 - [Bootstrap](https://getbootstrap.com/): UI framework (frontend)
+- [Pickr](https://github.com/Simonwep/pickr): Color picker widget on the Tag Builder page (frontend)
 - [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2: Bambu printer communication (backend) for LAN-only printers
