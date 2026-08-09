@@ -2,7 +2,7 @@
 # Not published to PyPI (yet), so these install straight from GitHub — which means pip
 # needs git on PATH. They pull their own dependencies (paho-mqtt, cryptography).
 bambu-mqtt-comms @ git+https://github.com/Aptimex/bambu-mqtt-comms.git@d40d387
-bambu-mqtt-generator @ git+https://github.com/Aptimex/bambu-mqtt-generator.git@0be28b5
+bambu-mqtt-generator @ git+https://github.com/Aptimex/bambu-mqtt-generator.git@4313354
 
 # bambu.py backend, for printers with "enable_custom_libraries": false.
 # Temporarily pointing to my fork of 2.6.6 while waiting for this bugfix merge: https://github.com/BambuTools/bambulabs_api/pull/180
