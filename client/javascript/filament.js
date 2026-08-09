@@ -4,12 +4,31 @@ function encodeTagParam(data) {
     return encodeURIComponent(data).replaceAll("%7C", "|");
 }
 
+// Point URL tags at whichever copy of the site is being used, so self-hosted
+// setups get their own address. Falls back to the public site for local testing.
+function qrspoolBaseURL() {
+    let host = window.location.hostname;
+    if (!/^https?:$/.test(window.location.protocol) || host === "" || host === "localhost" || host === "127.0.0.1") {
+        return "https://qrspool.com/";
+    }
+    return window.location.origin + window.location.pathname.replace(/[^/]*$/, "");
+}
+
 // Build a qrspool.com link that pre-loads the given tags. Passing both a filament
 // tag and a slot tag produces a combined link that applies the pair in one step.
 // Filament comes first so the scan page stores it before acting on the slot.
-function qrspoolURL(base, ...tags) {
+function qrspoolURL(...tags) {
     let params = tags.filter(t => t != null).map(t => t.toURLParam()).join("&");
-    return base + "?" + params;
+    return qrspoolBaseURL() + "?" + params;
+}
+
+// Copy text to the clipboard, briefly swapping feedbackEl's text to confirm it
+function copyToClipboard(text, feedbackEl, doneText="Copied!") {
+    navigator.clipboard.writeText(text).then(() => {
+        const orig = feedbackEl.innerText;
+        feedbackEl.innerText = doneText;
+        setTimeout(() => { feedbackEl.innerText = orig; }, 1200);
+    });
 }
 
 // Settings blob for https://qrcode2stl.printer.tools/, pasted into that site's
@@ -269,8 +288,8 @@ class FilamentOpenSpool {
 
     // A qrspool.com link that pre-loads this filament data. Useful as an NFC URL
     // record, which any phone can open natively without in-browser NFC support.
-    toQRSpoolURL(base="https://qrspool.com/") {
-        return qrspoolURL(base, this);
+    toQRSpoolURL() {
+        return qrspoolURL(this);
     }
 
     // Default label to emboss on a 3D printed tag
@@ -412,11 +431,7 @@ class FilamentSlot {
                 td.style.cursor = "pointer";
                 td.style.color = "blue";
                 td.onclick = function() {
-                    navigator.clipboard.writeText(this.innerText).then(() => {
-                        const orig = this.innerText;
-                        this.innerText = "Copied!";
-                        setTimeout(() => { this.innerText = orig; }, 1200);
-                    });
+                    copyToClipboard(this.innerText, this);
                 };
             }
         };
@@ -503,8 +518,8 @@ class SlotTag {
         return "slotstring=" + encodeTagParam(this.toQRString());
     }
 
-    toQRSpoolURL(base="https://qrspool.com/") {
-        return qrspoolURL(base, this);
+    toQRSpoolURL() {
+        return qrspoolURL(this);
     }
 
     // Default label to emboss on a 3D printed tag
