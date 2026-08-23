@@ -374,27 +374,39 @@ def _validate_int(value, label, blank_is_zero=False):
         return None, f"Invalid {label} '{value}': {e}"
 
 
-def _slot_exists(status: dict, amsID: int, trayID: int):
-    """Confirm the target slot exists and is loaded. Returns an error or None."""
-    if amsID in EXTERNAL_SPOOL_AMS_IDS:
-        if "vir_slot" not in status and "vt_tray" not in status:
+def _find_slot(slots: list, amsID: int, trayID: int):
+    """The parsed slot for these ids, or None if the printer has no such slot."""
+    slotID = 0 if amsID in EXTERNAL_SPOOL_AMS_IDS else trayID
+    for slot in slots:
+        ids = slot.get("ids") or {}
+        if ids.get("amsID") == amsID and ids.get("slotID") == slotID:
+            return slot
+    return None
+
+
+def _slot_loaded(status: dict, amsID: int, trayID: int):
+    """Confirm the target slot exists and holds a spool. Returns an error or None.
+
+    "Holds a spool" is the generator's `present` flag, which comes from the
+    printer's tray_exist_bits — the same signal Bambu Studio uses. It is not
+    the same as the printer knowing what the filament is: an unidentified spool
+    (a third-party roll with no RFID tag) reports no type at all, and setting
+    its filament is exactly what this app is for. Only a slot with nothing in
+    it is refused.
+    """
+    try:
+        slots = _current.parse_slots(status)
+    except Exception as e:
+        return str(e)
+
+    slot = _find_slot(slots, amsID, trayID)
+    if slot is None:
+        if amsID in EXTERNAL_SPOOL_AMS_IDS:
             return "Printer does not have an external spool slot"
-        return None
+        return f"Printer does not recognize AMS #{amsID} Slot #{trayID + 1}"
 
-    ams_by_id = {
-        int(a["id"]): a for a in (status.get("ams") or {}).get("ams", [])
-        if str(a.get("id", "")).isdigit()
-    }
-    if amsID not in ams_by_id:
-        return f"Printer does not recognize AMS #{amsID}"
-
-    trays = {
-        int(t["id"]): t for t in ams_by_id[amsID].get("tray", [])
-        if str(t.get("id", "")).isdigit()
-    }
-    tray = trays.get(trayID)
-    if tray is None or not tray.get("tray_type"):
-        return f"No filament is loaded in AMS #{amsID} Slot #{trayID + 1}"
+    if not slot.get("present", True):
+        return f"No spool is loaded in AMS #{amsID} Slot #{trayID + 1}"
     return None
 
 
@@ -429,7 +441,7 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, col
     if not status:
         return False, "No printer data available"
 
-    slot_error = _slot_exists(status, amsID, trayID)
+    slot_error = _slot_loaded(status, amsID, trayID)
     if slot_error:
         return False, slot_error
 
