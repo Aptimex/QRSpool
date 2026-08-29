@@ -146,7 +146,7 @@ If you have multiple printers configured, you can manually change the active pri
 
 ## Creating Tags
 
-The **[Tag Builder](https://qrspool.com/tag.html)** page (dropdown on the top nav bar) generates everything below from a single form, for both filament and slot tags: fill in the details, then copy out the tag string, the OpenSpool JSON, a pre-loaded qrspool.com URL, or a ready-to-import QR2STL settings blob. On Android with Chrome it can also write the data straight to an NFC tag. If a backend server is configured, the slot section lists your printer's actual slots in a dropdown so you don't have to copy IDs around by hand.
+The **[Tag Builder](https://qrspool.com/tag.html)** page (dropdown on the top nav bar) can help you generate everything both filament and slot tags, for both printable QR codes and NFC tags. On Android with Chrome it can also write the data straight to an NTAG-type NFC tag. Lots of data is pre-populated or selectable using information queried from the backend server, if configured.
 
 ### Filament QR Codes
 
@@ -203,9 +203,7 @@ If you have multiple printers configured, only one printer is "active" at a time
 
 ### Printing Your Tags
 
-[QR2STL](https://qrcode2stl.printer.tools/) generates printable 3D QR codes. A self-hostable fork (with ads and wait times removed) is also [available here](https://github.com/Aptimex/qrcode2stl). Additionally, [here's a JSON file](qr2stl.json) with good starting values that you can import into the site. Use the "Import/Export Settings" button at the top-right of the webpage to do so. 
-
-The Tag Builder page produces that same settings blob with your filament's data and label already filled in, so you can paste it straight into that dialog and generate the model.
+[QR2STL](https://qrcode2stl.printer.tools/) generates printable 3D QR codes. A self-hostable fork (with ads and wait times removed) is also [available here](https://github.com/Aptimex/qrcode2stl). The Tag Builder page produces a compatible JSON dump with your filament's data and label already filled in, so you can paste it straight into that site and generate the model with all the correct settings and data pre-applied. Use the "Import/Export Settings" button at the top-right of the QR2STL webpage to import the generated JSON.
 
 Tips for reliable scanning:
 - **30×30mm** with a 0.4mm nozzle works well; smaller dimensions need a 0.2mm nozzle
@@ -221,7 +219,7 @@ A custom clip with multiple attachment options for filament spools [is available
 
 ### NFC Tags
 
-**On Android with Chrome**, the Scan and Apply pages show a button to enable NFC scanning. Once enabled, tapping an NFC tag works just like scanning a QR code with the camera.
+**On Android with Chrome**, the Scan and Apply pages show a button to enable NFC scanning. Once enabled, tapping an NFC tag works just like scanning a QR code with the camera. This only works with [NTAG-type tags](https://www.nxp.com/products/NTAG213_215_216), NOT the (more expensive) Mifare Classic tags used by Bambu. The Web NFC library does not support RFID tag types other than NTAG.
 
 > [!IMPORTANT]
 > The Web NFC API only works when the website is using HTTPS, or is running on `localhost`. So you must also be using HTTPS (self-signed cert works) on your backend server to make use of this feature when using QRSpool.com.
@@ -232,7 +230,7 @@ QRSpool currently supports several different NFC formats:
 - [OpenTag3D](https://opentag3d.info/spec) tags; but see [OpenTag3D Field Length Limits](#opentag3d-field-length-limits) for important notes if you're using OpenTag3D with a Bambu printer
 - URL records pointing at qrspool.com with filament and/or slot data in the [URL parameters](#url-parameters)
 
-**Writing tags from QRSpool:** on Android with Chrome, the [Tag Builder](https://qrspool.com/tag.html) page writes both filament and slot tags directly. Pick which formats to include, hold a tag against your phone, and it's written. Each selected format becomes its own NDEF record on the same tag, so one tag can serve both native phone handling and QRSpool's dedicated NFC scanner. The page also shows an approximate byte count so you can tell whether your selection will fit on the tag you're using.
+**Writing NFC tags from QRSpool:** on Android with Chrome, the [Tag Builder](https://qrspool.com/tag.html) page writes both filament and slot tags directly. Pick which formats to include, hold a tag against your phone, and it's written (silently overwriting all existing data). Each selected format becomes its own NDEF record on the same tag, so one tag can serve both native phone handling and QRSpool's dedicated NFC scanner seamlessly. The page also shows an approximate byte count so you can tell whether your selection will fit on the specific NTAG you're using.
 
 **Combined tags:** the slot section has a *Combined tag* switch that folds the filament data into the slot tag, so a single tap applies that filament to that slot with no second scan. I haven't come across a real use case for this yet, but it's supported.
 
