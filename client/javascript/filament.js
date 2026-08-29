@@ -4,9 +4,19 @@ function encodeTagParam(data) {
     return encodeURIComponent(data).replaceAll("%7C", "|");
 }
 
+// Overrides the auto-detected base URL below, e.g. from the Tag Builder's Advanced
+// Settings "Target Domain" field. Null means fall back to auto-detection.
+let qrspoolBaseURLOverride = null;
+
+function setQrspoolBaseURLOverride(url) {
+    qrspoolBaseURLOverride = url || null;
+}
+
 // Point URL tags at whichever copy of the site is being used, so self-hosted
 // setups get their own address. Falls back to the public site for local testing.
 function qrspoolBaseURL() {
+    if (qrspoolBaseURLOverride) return qrspoolBaseURLOverride;
+
     let host = window.location.hostname;
     if (!/^https?:$/.test(window.location.protocol) || host === "" || host === "localhost" || host === "127.0.0.1") {
         return "https://qrspool.com/";
@@ -299,12 +309,12 @@ class FilamentOpenSpool {
         return [name, color].filter(s => s).join("\n");
     }
 
-    toQR2STLSettings(label=null) {
-        return qr2stlSettings(this.toQRString(), label || this.defaultLabel());
+    toQR2STLSettings(label="") {
+        return qr2stlSettings(this.toQRString(), label);
     }
 
-    toQR2STLJSON(label=null) {
-        return qr2stlJSON(this.toQRString(), label || this.defaultLabel());
+    toQR2STLJSON(label="") {
+        return qr2stlJSON(this.toQRString(), label);
     }
 
     // Trim a color to the 6-digit uppercase hex the tag formats expect.
@@ -527,12 +537,12 @@ class SlotTag {
         return [this.printer_name, this.displayID].filter(s => s).join("\n");
     }
 
-    toQR2STLSettings(label=null) {
-        return qr2stlSettings(this.toQRString(), label || this.defaultLabel());
+    toQR2STLSettings(label="") {
+        return qr2stlSettings(this.toQRString(), label);
     }
 
-    toQR2STLJSON(label=null) {
-        return qr2stlJSON(this.toQRString(), label || this.defaultLabel());
+    toQR2STLJSON(label="") {
+        return qr2stlJSON(this.toQRString(), label);
     }
 }
 

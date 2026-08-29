@@ -77,3 +77,20 @@ pre {
     color: maroon;
     font-size: 2em;
 }
+
+.collapsible-header {
+    cursor: pointer;
+    user-select: none;
+}
+
+.collapsible-header::after {
+    content: "▾";
+    display: inline-block;
+    margin-left: 0.4em;
+    font-size: 1.2em;
+    transition: transform 0.2s ease;
+}
+
+.collapsible-header[aria-expanded="true"]::after {
+    transform: rotate(180deg);
+}

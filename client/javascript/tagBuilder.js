@@ -15,11 +15,6 @@ function showTimedMsg(selector, html) {
     msgTimers.set(selector, setTimeout(() => { msg.innerHTML = ""; }, 8000));
 }
 
-// A tag's default label on one line, for the hint under the label field
-function labelPreview(tag) {
-    return tag.defaultLabel().replace(/\n/g, " / ") || "empty";
-}
-
 // ----- Form <-> tag -----
 
 // Build a tag from the current form values
@@ -40,6 +35,11 @@ function fillForm(tag) {
     el("#minTemp").value = tag.minTemp ?? "";
     el("#maxTemp").value = tag.maxTemp ?? "";
     syncColorPickr();
+    refresh();
+}
+
+function fillDefaultLabel() {
+    el("#label").value = formTag().defaultLabel();
     refresh();
 }
 
@@ -134,7 +134,6 @@ function refresh() {
     el("#OS-JSON").innerText = tag.toOpenSpoolJSON();
     el("#QRSpool-URL").innerText = tag.toQRSpoolURL();
     el("#STL-JSON").innerText = tag.toQR2STLJSON(label);
-    el("#labelPreview").innerText = labelPreview(tag);
 
     updateNFCSize("filament");
     // A combined slot tag embeds the filament data, so it changes too
@@ -187,6 +186,11 @@ function onSlotIDsInput() {
     let match = [...el("#slotPicker").options].find(o => o.value !== "" && o.value === el("#slotIDs").value.trim());
     el("#slotPicker").value = match ? match.value : "";
     pickedSlotDisplayID = match ? match.dataset.displayID : null;
+    refreshSlot();
+}
+
+function fillDefaultSlotLabel() {
+    el("#slotLabel").value = slotFormTag().defaultLabel();
     refreshSlot();
 }
 
@@ -273,8 +277,6 @@ function refreshSlot() {
     // printer-only one, which isn't what the user asked for
     let usable = tag.isUsable() && !parsed.error;
     let label = el("#slotLabel").value.trim();
-
-    el("#slotLabelPreview").innerText = labelPreview(tag);
 
     if (usable) {
         el("#SLOT-string").innerText = tag.toQRString();
@@ -468,10 +470,19 @@ function checkNFCSupport() {
     setWriteBusy(false);
 }
 
+// ----- Advanced settings -----
+
+function onTargetDomainInput() {
+    setQrspoolBaseURLOverride(el("#targetDomain").value.trim());
+    refresh();
+    refreshSlot();
+}
+
 // ----- Init -----
 
 checkNFCSupport();
 loadActiveTag();
+el("#targetDomain").value = qrspoolBaseURL();
 refresh();
 refreshSlot();
 loadSlotOptions();

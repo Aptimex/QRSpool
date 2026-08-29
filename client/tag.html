@@ -31,9 +31,8 @@
 
                 <h1>Tag Builder</h1>
                 <p class="form-text mt-0">
-                    Build the two kinds of tag QRSpool scans: a <a href="#filament-tag">filament tag</a> for a spool,
-                    and a <a href="#slot-tag">slot tag</a> for an AMS slot. Tag data updates as you type; copy it into
-                    a QR code generator, or write it straight to an NFC tag.
+                    Build a <a href="#filament-tag">filament tag</a> for a spool, or a <a href="#slot-tag">slot tag</a> for an AMS slot. 
+                    Copy the data into a QR code generator, or write it straight to an NFC tag.
                 </p>
 
                 <hr>
@@ -44,7 +43,7 @@
                     <div class="mb-3">
                         <label for="tagType" class="form-label">Type</label>
                         <input type="text" class="form-control" id="tagType" placeholder="PLA Matte" oninput="refresh()">
-                        <div class="form-text">Must match a Bambu Studio filament profile name, e.g. <code>PLA Matte</code>.</div>
+                        <div class="form-text">Must match a Bambu Studio filament profile name, e.g. <code>PLA Matte</code> or <code>PETG HF</code>.</div>
                     </div>
 
                     <div class="mb-3">
@@ -80,10 +79,8 @@
                     <div class="mb-3">
                         <label for="label" class="form-label">Printed Label <span class="text-muted">(optional)</span></label>
                         <textarea class="form-control" id="label" rows="2" oninput="refresh()"></textarea>
-                        <div class="form-text">
-                            Text embossed on the 3D printed tag. Leave blank to use the auto-generated label
-                            (<span id="labelPreview" class="font-monospace"></span>).
-                        </div>
+                        <div class="form-text">Text embossed on the 3D printed tag.</div>
+                        <button class="btn btn-primary btn-sm mt-2" type="button" onclick="fillDefaultLabel()">Auto-generate Label</button>
                     </div>
 
                     <button class="btn btn-primary" type="button" onclick="saveActiveTag()">Save as Active Tag</button>
@@ -123,10 +120,9 @@
 
                 <h3 class="h5 mt-3">QR2STL Settings</h3>
                 <p class="form-text mt-0">
-                    Generates a printable 3D QR code. Open
-                    <a href="https://qrcode2stl.printer.tools/" target="_blank" rel="noopener noreferrer">QR2STL</a>,
-                    click <b>Import/Export Settings</b> at the top right, paste this into the <b>Import</b> box, and
-                    click <b>Apply Settings</b>.
+                    Generates a printable 3D QR code. Open <a href="https://qrcode2stl.printer.tools/" target="_blank" rel="noopener noreferrer">QR2STL</a>,
+                    click <b>Import/Export Settings</b> at the top right (inside hamburger menu on mobile), paste this into the <b>Import</b> box, 
+                    and click <b>Apply Settings</b>.
                 </p>
                 <div class="copy-box">
                     <pre id="STL-JSON" class="mb-0"></pre>
@@ -137,26 +133,25 @@
                 <div id="nfc-unsupported" class="alert alert-warning" role="alert" hidden></div>
 
                 <p class="form-text mt-0">
-                    Choose which formats to write. Selecting more than one writes them as separate NDEF records on the
-                    same tag, in the order listed below, for maximum compatibility across phones and readers.
+                    Choose which formats to write. Separate NDEF records will be written in the order listed.
                 </p>
 
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="nfc-url" checked onclick="refresh()">
                     <label class="form-check-label" for="nfc-url">
-                        <b>URL record</b> &mdash; a qrspool.com link. Any phone can open it natively by tapping the tag.
+                        <b>URL record</b>: a qrspool.com link. Any phone can open it natively by tapping the tag.
                     </label>
                 </div>
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="nfc-os1" checked onclick="refresh()">
                     <label class="form-check-label" for="nfc-os1">
-                        <b>Text record</b> &mdash; the OpenSpool 1.0 string, read by QRSpool's NFC scanner.
+                        <b>Text record</b>: the OpenSpool 1.0 string, read by QRSpool's NFC scanner.
                     </label>
                 </div>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="nfc-osjson" onclick="refresh()">
                     <label class="form-check-label" for="nfc-osjson">
-                        <b>OpenSpool record</b> &mdash; <code>application/json</code>, for OpenSpool-compatible readers.
+                        <b>OpenSpool record</b>: <code>application/json</code>, for OpenSpool-compatible readers.
                     </label>
                 </div>
 
@@ -172,8 +167,7 @@
 
                 <h2 id="slot-tag">Slot Tag</h2>
                 <p class="form-text mt-0">
-                    Identifies an AMS slot, a printer, or both. Scanning one of these together with a filament tag
-                    applies that filament to the slot.
+                    Identifies an AMS slot, a printer, or a slot on a specific printer. Scan to quickly apply a filament tag to the slot.
                 </p>
 
                 <form onsubmit="return false;">
@@ -191,8 +185,7 @@
                             placeholder="My Printer" autocomplete="off" oninput="refreshSlot()">
                         <datalist id="printerNames"></datalist>
                         <div class="form-text">
-                            Scanning the tag switches to this printer first. Must match a name from your server's
-                            <code>bambu_config.json</code>. Leave blank to target whichever printer is already active.
+                            For multi-printer setups. Must match a name from your server's <code>bambu_config.json</code>. Leave blank to target whichever printer is already active.
                         </div>
                     </div>
 
@@ -202,8 +195,7 @@
                             placeholder='{...}' autocomplete="off" spellcheck="false"
                             oninput="onSlotIDsInput()">
                         <div class="form-text">
-                            Filled in by the picker above. You can also paste it from the Apply page, under
-                            &ldquo;Show/Hide All Slot Info&rdquo; for any slot.
+                            Filled in by the picker above. This data is also available on the Apply Tag page, under &ldquo;Show/Hide All Slot Info&rdquo; for any slot.
                         </div>
                         <div class="form-text text-danger" id="slotIDsError"></div>
                     </div>
@@ -211,10 +203,8 @@
                     <div class="mb-3">
                         <label for="slotLabel" class="form-label">Printed Label <span class="text-muted">(optional)</span></label>
                         <textarea class="form-control" id="slotLabel" rows="2" oninput="refreshSlot()"></textarea>
-                        <div class="form-text">
-                            Text embossed on the 3D printed tag. Leave blank to use the auto-generated label.
-                            (<span id="slotLabelPreview" class="font-monospace"></span>).
-                        </div>
+                        <div class="form-text">Text embossed on the 3D printed tag.</div>
+                        <button class="btn btn-primary btn-sm mt-2" type="button" onclick="fillDefaultSlotLabel()">Auto-generate Label</button>
                     </div>
 
                     <button class="btn btn-primary" type="button" onclick="saveActiveSlot()">Save as Active Slot</button>
@@ -255,20 +245,20 @@
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="slot-nfc-url" checked onclick="refreshSlot()">
                     <label class="form-check-label" for="slot-nfc-url">
-                        <b>URL record</b> &mdash; a qrspool.com link. Any phone can open it natively by tapping the tag.
+                        <b>URL record</b>: a qrspool.com link. Any phone can open it natively by tapping the tag.
                     </label>
                 </div>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="slot-nfc-text" checked onclick="refreshSlot()">
                     <label class="form-check-label" for="slot-nfc-text">
-                        <b>Text record</b> &mdash; the slot string, read by QRSpool's NFC scanner.
+                        <b>Text record</b>: the slot string, read by QRSpool's NFC scanner.
                     </label>
                 </div>
 
                 <div class="form-check form-switch mb-2">
                     <input class="form-check-input" type="checkbox" id="slot-nfc-combine" onclick="refreshSlot()">
                     <label class="form-check-label" for="slot-nfc-combine">
-                        <b>Combined tag</b> &mdash; also include the filament data from above, so one tap applies that
+                        <b>Combined tag</b>: also include the filament data from above, so one tap applies that
                         filament to this slot.
                     </label>
                 </div>
@@ -295,6 +285,26 @@
                     Web NFC only works in Chrome on Android, and only over HTTPS. Writing replaces everything already
                     on the tag. Tags that are locked or read-only can't be written.
                 </p>
+
+                <hr>
+
+                <h2 class="collapsible-header" data-bs-toggle="collapse" data-bs-target="#advancedSettingsBody"
+                    role="button" aria-expanded="false" aria-controls="advancedSettingsBody">
+                    Advanced Settings
+                </h2>
+
+                <div class="collapse" id="advancedSettingsBody">
+                    <div class="mb-3">
+                        <label for="targetDomain" class="form-label">Target Domain</label>
+                        <input type="text" class="form-control font-monospace" id="targetDomain"
+                            placeholder="https://qrspool.com/" autocomplete="off" spellcheck="false"
+                            oninput="onTargetDomainInput()">
+                        <div class="form-text">
+                            Domain used for the URL records and QRSpool URLs above. Auto-filled with this page's own
+                            domain; change it to point generated tags at a different QRSpool instance.
+                        </div>
+                    </div>
+                </div>
 
             </div>
         </main>
