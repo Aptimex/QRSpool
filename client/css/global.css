@@ -24,8 +24,19 @@ pre {
     background-color: lightgray;
     display: block;
     padding: 1rem;
+    padding-right: 5rem; /* keep content clear of the Copy button */
     position: relative;
     word-wrap: break-word;
+    overflow-wrap: anywhere;
+}
+
+/* Multi-line content (e.g. JSON blobs) inside a copy box */
+.copy-box pre {
+    background-color: transparent;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 20em;
+    overflow-y: auto;
 }
 
 .btn-clipboard {
@@ -65,4 +76,21 @@ pre {
     font-weight: bold;
     color: maroon;
     font-size: 2em;
+}
+
+.collapsible-header {
+    cursor: pointer;
+    user-select: none;
+}
+
+.collapsible-header::after {
+    content: "▾";
+    display: inline-block;
+    margin-left: 0.4em;
+    font-size: 1.2em;
+    transition: transform 0.2s ease;
+}
+
+.collapsible-header[aria-expanded="true"]::after {
+    transform: rotate(180deg);
 }
