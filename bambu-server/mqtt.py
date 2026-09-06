@@ -27,6 +27,7 @@ from bambu_mqtt_generator import (
     get_payload_builder,
     load_config,
     load_pem,
+    find_slot,
     parse_response,
 )
 
@@ -129,6 +130,10 @@ class _PrinterSession:
             print(f"[mqtt] {name}: enable_signing is set but no signing "
                   "credentials are configured; commands will be sent unsigned")
             self.signing_enabled = False
+
+        # Whether setFilament may write over a slot the printer identified from
+        # an RFID tag. Off by default; see _auto_detected.
+        self.overwrite_auto_filament = bool(cfg.get("overwrite_auto_filament", False))
 
         self.client: Optional[BambuMQTTClient] = None
         self.builder = None
@@ -246,10 +251,16 @@ class _PrinterSession:
 
     # -- status ----------------------------------------------------------------
 
-    def refresh_status(self) -> Optional[dict]:
-        """Request a full status push and cache it."""
+    def refresh_status(self, force: bool = False) -> Optional[dict]:
+        """Ask the printer for a full report and cache it.
+
+        Pass force=true if it's critical to get a full fresh report, 
+        rather than cached data based on monitored incremental updates.
+        """
         with self._lock:
-            self._status = self.client.request_status(timeout=STATUS_TIMEOUT)
+            self._status = self.client.request_status(
+                timeout=STATUS_TIMEOUT, force=force
+            )
             return self._status
 
     def current_status(self, max_age: float = STATUS_MAX_AGE) -> Optional[dict]:
@@ -374,18 +385,8 @@ def _validate_int(value, label, blank_is_zero=False):
         return None, f"Invalid {label} '{value}': {e}"
 
 
-def _find_slot(slots: list, amsID: int, trayID: int):
-    """The parsed slot for these ids, or None if the printer has no such slot."""
-    slotID = 0 if amsID in EXTERNAL_SPOOL_AMS_IDS else trayID
-    for slot in slots:
-        ids = slot.get("ids") or {}
-        if ids.get("amsID") == amsID and ids.get("slotID") == slotID:
-            return slot
-    return None
-
-
-def _slot_loaded(status: dict, amsID: int, trayID: int):
-    """Confirm the target slot exists and holds a spool. Returns an error or None.
+def _resolve_slot(status: dict, amsID: int, trayID: int):
+    """Find the target slot and confirm it holds a spool. Returns (slot, error).
 
     "Holds a spool" is the generator's `present` flag, which comes from the
     printer's tray_exist_bits — the same signal Bambu Studio uses. It is not
@@ -397,17 +398,27 @@ def _slot_loaded(status: dict, amsID: int, trayID: int):
     try:
         slots = _current.parse_slots(status)
     except Exception as e:
-        return str(e)
+        return None, str(e)
 
-    slot = _find_slot(slots, amsID, trayID)
+    slotID = 0 if amsID in EXTERNAL_SPOOL_AMS_IDS else trayID
+    slot = find_slot(slots, amsID, slotID)
     if slot is None:
         if amsID in EXTERNAL_SPOOL_AMS_IDS:
-            return "Printer does not have an external spool slot"
-        return f"Printer does not recognize AMS #{amsID} Slot #{trayID + 1}"
+            return None, "Printer does not have an external spool slot"
+        return None, f"Printer does not recognize AMS #{amsID} Slot #{trayID + 1}"
 
     if not slot.get("present", True):
-        return f"No spool is loaded in AMS #{amsID} Slot #{trayID + 1}"
-    return None
+        return None, f"No spool is loaded in AMS #{amsID} Slot #{trayID + 1}"
+    return slot, None
+
+
+def _auto_detected(slot: dict) -> bool:
+    """Whether the AMS identified this slot's spool from its RFID tag.
+
+    The generator makes the call (`auto_detected`, from tag_uid the way Bambu
+    Studio does it, and never for an external holder, which has no tag reader).
+    """
+    return bool(slot.get("auto_detected"))
 
 
 def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, colorName=""):
@@ -441,9 +452,19 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, col
     if not status:
         return False, "No printer data available"
 
-    slot_error = _slot_loaded(status, amsID, trayID)
+    slot, slot_error = _resolve_slot(status, amsID, trayID)
     if slot_error:
         return False, slot_error
+
+    where = slot.get("displayID") or f"AMS #{amsID} Slot #{trayID + 1}"
+
+    # Block overwriting AMS-detected filaments unless explicitly configured to allow it.
+    if not _current.overwrite_auto_filament and _auto_detected(slot):
+        return False, f"{where} filament was auto-detected by the AMS; overwriting is blocked."
+
+    # Block writing to slots that the AMS is actively trying to read
+    if slot.get("read_pending"):
+        return False, f"{where} is currently being read by the AMS, try again later."
 
     try:
         payload = _build_filament_payload(

@@ -57,6 +57,14 @@ def _normalize_printer(printer: dict) -> dict:
     accepts unsigned commands anyway. Turn it on for a printer whose firmware
     rejects unsigned commands, which also requires the three cert file paths at
     the top level of the config. Ignored when enable_custom_libraries is false.
+
+    overwrite_auto_filament controls whether setFilament may write over a slot
+    whose filament the printer identified from an RFID tag. It defaults to
+    false, which is what an unattended writer wants: the AMS reads the tag
+    within seconds of a spool going in and fills the slot in correctly, so a
+    write that lands afterwards only replaces good data with a guess. Set it
+    true for a printer whose slots should always take whatever is sent. Ignored
+    when enable_custom_libraries is false.
     """
     if "enable_custom_libraries" not in printer and "new_dev_mode" in printer:
         print(f"  Note: printer '{printer.get('name', printer.get('ip'))}' uses "
@@ -65,6 +73,7 @@ def _normalize_printer(printer: dict) -> dict:
 
     printer.setdefault("enable_custom_libraries", False)
     printer.setdefault("enable_signing", False)
+    printer.setdefault("overwrite_auto_filament", False)
     return printer
 
 

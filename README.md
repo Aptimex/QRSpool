@@ -182,6 +182,7 @@ These apply only when `enable_custom_libraries` is `true`, and are ignored other
 | Key | Required | Default | Purpose |
 |---|---|---|---|
 | `enable_signing` | no | `false` | Sign commands sent to this printer. See [Command signing](#command-signing-highly-experimental). |
+| `overwrite_auto_filament` | no | `false` | Allow writes to AMS slots with loaded filaments that the AMS already identified from an official RFID tag. |
 | `model_id` | no | auto-detected | Printer model id, e.g. `N2S` for an A1 — see the table below |
 | `firmware_version` | no | auto-detected | e.g. `01.05.00.00`. Check Settings > Device > Firmware on the printer. |
 
@@ -422,9 +423,11 @@ If all fallbacks fail, the server returns an error.
 
 **Tested LAN-Only hardware:** A1 (firmware 01.04.00.00) with AMS Lite (firmware 00.00.07.94). Should work with any printer and AMS supported by [bambulabs-api](https://pypi.org/project/bambulabs-api/). This is the default backend and the recommended one wherever it works.
 
-**Experimental LAN+DEV support:** Enabled per printer via `enable_custom_libraries` (see [Choosing a backend](#choosing-a-backend)). Tested on an A1 (firmware 01.05.00.00, AMS Lite) and a P2S (firmware 01.02.00.00, AMS 2 Pro), covering both external-spool reporting formats. Everything about it is reconstructed from the Bambu Studio source and traffic analysis rather than documentation, so treat it as experimental on any printer — and expect firmware updates to be able to break it. If you know of an existing Python library with better-tested support for newer printers and firmwares, let me know.
+**Experimental LAN+DEV support:** Enabled per printer via `enable_custom_libraries` (see [Choosing a backend](#choosing-a-backend)). Tested on an A1 (firmware 01.05.00.00, AMS Lite) and a P2S (firmware 01.02.00.00, AMS 2 Pro). Everything about it is reconstructed from the Bambu Studio source and traffic analysis rather than official documentation (which Bambu doesn't provide), so treat it as experimental on any printer and expect firmware updates to potentially break it. If you know of an existing Python library with better-tested support for newer printers and firmwares, let me know.
 
 **Command signing:** Firmware from roughly January 2025 onward rejects unsigned writes for cloud-connected printers. Signing is supported but off by default and needs credentials you must supply yourself; see [Command signing](#command-signing-highly-experimental).
+
+**Auto-detected spools:** Since official Bambu spools that are read by the AMS directly come with some benefits (such as native remaining-filament tracking) that can't be directly replicated via this project, by default QRSpool will not let you write different filament data to such slots. If you want to be able to do so, set `"overwrite_auto_filament": true` for the target printer in the JSON config. The server also rejects change requests that happen while the printer is actively trying to read the target slot (not configurable).
 
 ---
 

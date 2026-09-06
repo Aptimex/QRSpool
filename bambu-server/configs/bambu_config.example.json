@@ -21,7 +21,8 @@
       "firmware_version": "01.05.00.00",
       "access_code": "87654321",
       "enable_custom_libraries": true,
-      "enable_signing": true
+      "enable_signing": true,
+      "overwrite_auto_filament": false
     },
     {
       "name": "My Third Printer (LAN/dev mode, no signing credentials)",
@@ -31,7 +32,8 @@
       "firmware_version": "01.02.00.00",
       "access_code": "76543210",
       "enable_custom_libraries": true,
-      "enable_signing": false
+      "enable_signing": false,
+      "overwrite_auto_filament": true
     }
   ]
 }

@@ -4,7 +4,7 @@ from flask_basicauth import BasicAuth
 import json
 import bambu
 import mqtt
-from threading import Timer
+from threading import Timer, Lock
 from base64 import b64encode, b64decode
 
 from configs.config_loader import AUTH_USER, AUTH_PASS, INACTIVITY_TIMEOUT, PRINTERS
@@ -21,6 +21,7 @@ basic_auth = BasicAuth(app)
 
 CONNECTED = False
 T: Timer = None
+_CONN_LOCK = Lock()
 
 BASIC_AUTH = None
 
@@ -51,25 +52,65 @@ def _find_printer_by_name(name: str):
 
 
 def connect():
-    global CONNECTED, T
+    """Connect to the active printer if needed, and restart the idle countdown."""
+    global CONNECTED
 
-    if CONNECTED:
-        return
-    _current_backend.connect()
-    CONNECTED = True
+    with _CONN_LOCK:
+        if not CONNECTED:
+            _current_backend.connect()
+            CONNECTED = True
 
-    if INACTIVITY_TIMEOUT > 0:
-        T = Timer(INACTIVITY_TIMEOUT, disconnect)
-        T.cancel()
-        T.start()
+        _arm_inactivity_timer()
 
 
 def disconnect():
-    global CONNECTED, T
-    if not CONNECTED or not T:
+    """Drop the connection to the active printer."""
+    with _CONN_LOCK:
+        _disconnect_locked()
+
+
+def _disconnect_locked():
+    """Tear down the backend connection. Callers hold _CONN_LOCK."""
+    global CONNECTED
+
+    _cancel_inactivity_timer()
+    if not CONNECTED:
         return
-    T.cancel()
+    try:
+        _current_backend.disconnect()
+    except Exception as e:
+        print(f"Error disconnecting from printer: {e}")
     CONNECTED = False
+
+
+def _arm_inactivity_timer():
+    """Start the idle countdown, replacing any timer already running. Callers hold _CONN_LOCK."""
+    global T
+
+    _cancel_inactivity_timer()
+    if INACTIVITY_TIMEOUT > 0:
+        timer = Timer(INACTIVITY_TIMEOUT, lambda: _on_inactivity_timeout(timer))
+        T = timer
+        timer.start()
+
+
+def _cancel_inactivity_timer():
+    """Stop the idle countdown if one is running. Callers hold _CONN_LOCK."""
+    global T
+
+    if T is not None:
+        T.cancel()
+        T = None
+
+
+def _on_inactivity_timeout(timer: Timer):
+    """The idle countdown expired: disconnect, unless it was already re-armed."""
+    with _CONN_LOCK:
+        if T is not timer:
+            # A request re-armed the countdown (or switched printers) while this callback waited for the lock. 
+            # The connection is in use again.
+            return
+        _disconnect_locked()
 
 def makeError(msg):
     print(f"Error: {msg}")
@@ -187,7 +228,7 @@ def getSlots():
 @app.route("/activePrinter", methods=['GET', 'PUT', 'POST'])
 @basic_auth.required
 def activePrinter():
-    global CONNECTED, T, _current_backend, _current_cfg
+    global _current_backend, _current_cfg
 
     if request.method == 'GET':
         return jsonify({"name": _current_backend.CURRENT_PRINTER_NAME})
@@ -212,13 +253,8 @@ def activePrinter():
 
     new_backend, new_cfg = _ALL_PRINTERS[printer_name]
 
-    # Tear down current connection before switching
-    if T:
-        T.cancel()
-        T = None
-    if CONNECTED:
-        _current_backend.disconnect()
-        CONNECTED = False
+    # Tear down the old printer's connection before switching
+    disconnect()
 
     _current_backend = new_backend
     _current_cfg = new_cfg
