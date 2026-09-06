@@ -52,15 +52,21 @@ def _find_printer_by_name(name: str):
 
 
 def connect():
-    """Connect to the active printer if needed, and restart the idle countdown."""
+    """Connect to the active printer if needed, and restart the idle countdown.
+
+    Returns an error dict if the printer could not be reached, else None.
+    """
     global CONNECTED
 
     with _CONN_LOCK:
         if not CONNECTED:
-            _current_backend.connect()
+            error = _current_backend.ensureConnected()
+            if error:
+                return error
             CONNECTED = True
 
         _arm_inactivity_timer()
+    return None
 
 
 def disconnect():
@@ -217,7 +223,9 @@ def printerState():
 @app.route("/slots")
 @basic_auth.required
 def getSlots():
-    connect()
+    error = connect()
+    if error:
+        return jsonify(error)
     try:
         p = _current_backend.getSlots()
     except Exception as e:
@@ -259,7 +267,9 @@ def activePrinter():
     _current_backend = new_backend
     _current_cfg = new_cfg
     _current_backend.setCurrentPrinter(_current_cfg, printer_name)
-    connect()
+    error = connect()
+    if error:
+        return makeError(f"Switched to '{printer_name}' but could not connect: {error['error']}")
     return jsonify({"name": printer_name})
 
 
@@ -274,7 +284,9 @@ def setFilament():
         print(e)
         return makeError(str(e))
 
-    connect()
+    error = connect()
+    if error:
+        return makeError(error["error"])
     #print(fData.__dict__)
     good, result = _current_backend.setFilament(fData.amsID, fData.slotID, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp, fData.colorName)
 
@@ -288,5 +300,7 @@ def setFilament():
 @basic_auth.required
 def reconnect():
     disconnect()
-    connect()
+    error = connect()
+    if error:
+        return makeError(error["error"])
     return jsonify({"info": "reconnect triggered"})

@@ -69,6 +69,14 @@ def ensureConnected():
             return makeError("Unable to connect to printer")
     return None
 
+def retryable(msg: str) -> str:
+    """Error tag specifically for automated, non-interactive clients.
+    Indicates there is likely benefit from trying the request again in a few seconds.
+    """
+    marker = "[retry]"
+    return f"{msg} {marker}"
+
+
 def makeError(msg: str):
     return {
         "error": msg
@@ -194,7 +202,9 @@ def getSlots():
     return resp
 
 def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0, colorName = ""):
-    ensureConnected()
+    error = ensureConnected()
+    if error:
+        return False, error["error"]
 
     minTemp = 0 if (minTemp == "") else minTemp
     maxTemp = 0 if (maxTemp == "") else maxTemp
@@ -239,7 +249,7 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0,
     try:
         _ = hub[amsID][trayID]
     except KeyError as e:
-        return False, f"No filament is loaded in that slot, or printer does not advertise AMS #{amsID} with Slot #{trayID+1})"
+        return False, retryable(f"No spool is loaded in AMS #{amsID} Slot #{trayID+1}, or the printer does not advertise that slot")
     '''
 
     result = CURRENT_PRINTER.set_filament_printer(colorHex, newFilament, amsID, trayID)

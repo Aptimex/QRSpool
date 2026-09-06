@@ -37,6 +37,7 @@ from bambu import (
     getTypeAbbreviations,
     getModifierAbbreviations,
     filamentToCode,
+    retryable,
 )
 
 # Ids the printer uses for external spools rather than an AMS bay.
@@ -408,7 +409,7 @@ def _resolve_slot(status: dict, amsID: int, trayID: int):
         return None, f"Printer does not recognize AMS #{amsID} Slot #{trayID + 1}"
 
     if not slot.get("present", True):
-        return None, f"No spool is loaded in AMS #{amsID} Slot #{trayID + 1}"
+        return None, retryable(f"No spool is loaded in AMS #{amsID} Slot #{trayID + 1}")
     return slot, None
 
 
@@ -464,7 +465,7 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, col
 
     # Block writing to slots that the AMS is actively trying to read
     if slot.get("read_pending"):
-        return False, f"{where} is currently being read by the AMS, try again later."
+        return False, retryable(f"{where} is currently being read by the AMS, try again later.")
 
     try:
         payload = _build_filament_payload(
@@ -478,7 +479,7 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, col
     try:
         response = _current.client.send_and_wait(message, timeout=COMMAND_TIMEOUT)
     except BambuMQTTError:
-        return False, (f"No response from printer within {COMMAND_TIMEOUT:.0f}s; the change may or may not have been applied")
+        return False, f"No response from printer within {COMMAND_TIMEOUT:.0f}s; the change may or may not have been applied"
 
     result = check_command_result(response)
     if not result["accepted"]:
