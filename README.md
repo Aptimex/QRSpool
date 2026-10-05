@@ -10,7 +10,7 @@ Update your 3D printer's filament slot settings by scanning a printed QR code or
 
 > **Beta:** Fully functional for Bambu Labs printers on pre-January-2025 firmware, using the well-established [bambulabs-api](https://pypi.org/project/bambulabs-api/) library. Printers on newer firmwares with LAN+DEV mode are supported by an **experimental** custom communication library that is off by default and must be enabled per printer — see [Choosing a backend](#choosing-a-backend). Please report any issues you encounter.
 
-**Super Experimental:** Now includes initial support for cloud-connected printers (**not** on LAN+DEV mode) on the latest firmwares, but only over local LAN communication (server still has to be on the same local network). This requires you to obtain and provide appropriate certificates and keys for signing printer commands, which is non-trivial. Most users should stick with LAN+DEV mode, but full details are in the [Configuration](#configuration) section.
+**Experimental:** Now includes initial support for cloud-connected printers (**not** on LAN+DEV mode) on the latest firmwares, but only using local LAN communication (server still has to be on the same local network, this won't send cloud traffic). This requires you to obtain and provide appropriate certificates and keys, which is non-trivial. Full details are in the [Configuration](#configuration) section. Most users should stick with LAN+DEV mode for the easiest experience.
 
 ## Table of Contents
 - [What It Does](#what-it-does)
@@ -22,7 +22,7 @@ Update your 3D printer's filament slot settings by scanning a printed QR code or
   - [Top-level settings](#top-level-settings)
   - [Per-printer settings](#per-printer-settings)
   - [Choosing a backend](#choosing-a-backend)
-  - [Command signing](#command-signing-highly-experimental)
+  - [Command signing](#command-signing-experimental)
 - [Scanning and Applying Filament](#scanning-and-applying-filament)
 - [Creating Tags](#creating-tags)
   - [Filament QR Codes](#filament-qr-codes)
@@ -87,7 +87,7 @@ cd QRSpool/bambu-server
 cp configs/bambu_config.example.json configs/bambu_config.json
 ```
 
-Now edit `configs/bambu_config.json` and fill in your printer's IP address, serial number, and access code, and set a username and password for the server. Multiple printers can be configured in that file; just ensure each printer entry in that file receives a unique name. The defaults suit a LAN-only printer; see [Configuration](#configuration) for the full list of settings, including what to change for a printer in LAN+DEV mode.
+Now edit `configs/bambu_config.json` and fill in your printer's IP address, serial number, and access code, and set a username and password for the server. Multiple printers can be configured in that file; just ensure each printer entry in that file receives a unique name. Those four values are all most setups need; see [Configuration](#configuration) for the full list of settings.
 
 **Run it with Docker (recommended):**
 
@@ -154,7 +154,7 @@ Go to the **Scan** tab and grant camera and/or NFC access as prompted. Now you'r
 
 ## Configuration
 
-All server settings live in `bambu-server/configs/bambu_config.json`. Copy `bambu_config.example.json` to get started. With Docker the whole `configs/` folder is mounted live, so your settings survive rebuilds — run `sudo docker compose restart` after any change to reload it.
+All server settings live in `bambu-server/configs/bambu_config.json`. Copy `bambu_config.example.json` to get started; [`configs/README.md`](bambu-server/configs/README.md) is a condensed reference for every field. The server validates the file at startup and refuses to run if it finds a setting it doesn't recognize, so a typo is reported by name rather than silently ignored. With Docker the whole `configs/` folder is mounted live, so your settings survive rebuilds — run `sudo docker compose restart` after any change to reload it.
 
 ### Top-level settings
 
@@ -163,7 +163,7 @@ All server settings live in `bambu-server/configs/bambu_config.json`. Copy `bamb
 | `printers` | yes | — | List of printer entries (see below). Each needs a unique `name`. |
 | `auth_user` / `auth_pass` | yes | — | Credentials the frontend uses to reach the server |
 | `inactivity_timeout` | no | `300` | Seconds of inactivity before the server drops its printer connection. `0` disables it. |
-| `key_pem_file`<br>`cert_chain_pem_file`<br>`crl_pem_file` | only for signing | — | Paths to signing credentials, relative to `bambu-server/`. See [Command signing](#command-signing-highly-experimental). |
+| `key_pem_file`<br>`cert_chain_pem_file`<br>`crl_pem_file` | no | — | Paths to signing credentials, relative to `bambu-server/`. Almost nobody needs these; see [Command signing](#command-signing-experimental). |
 
 ### Per-printer settings
 
@@ -173,15 +173,16 @@ All server settings live in `bambu-server/configs/bambu_config.json`. Copy `bamb
 | `ip` | yes | — | Printer's local IP address |
 | `serial` | yes | — | Printer serial number |
 | `access_code` | yes | — | Access code from the printer's display (Settings > LAN Only) |
-| `enable_custom_libraries` | no | `false` | Selects which backend talks to this printer (see below) |
+| `backend` | no | `"custom"` | Which library talks to this printer (see below) |
 
-#### Experimental settings
+There is deliberately no signing setting: whether a printer requires signed commands is [detected automatically](#command-signing-experimental).
 
-These apply only when `enable_custom_libraries` is `true`, and are ignored otherwise.
+#### Optional settings
+
+These apply only to the `"custom"` backend, and are ignored otherwise.
 
 | Key | Required | Default | Purpose |
 |---|---|---|---|
-| `enable_signing` | no | `false` | Sign commands sent to this printer. See [Command signing](#command-signing-highly-experimental). |
 | `overwrite_auto_filament` | no | `false` | Allow writes to AMS slots with loaded filaments that the AMS already identified from an official RFID tag. |
 | `model_id` | no | auto-detected | Printer model id, e.g. `N2S` for an A1 — see the table below |
 | `firmware_version` | no | auto-detected | e.g. `01.05.00.00`. Check Settings > Device > Firmware on the printer. |
@@ -207,25 +208,27 @@ This table is maintained in the [bambu-mqtt-generator](https://github.com/Aptime
 
 ### Choosing a backend
 
-Each connected printer is handled by one of two communication backends, defined by the value of its `enable_custom_libraries` key in your config:
+Each connected printer is handled by one of two communication backends, chosen by its `backend` key:
 
-- **`false`** *(default)* — uses [bambulabs-api](https://pypi.org/project/bambulabs-api/), a mature third-party library. This is the well-tested path and the right choice for any printer it supports, which is most printers on pre-Jan-2025 firmware running in LAN-only mode.
-- **`true`** — uses my custom [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) and [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator) libraries that I developed specifically for this project. These make printers on newer firmwares with LAN+DEV mode work, and provides the support for signing commands to enable interoperability and control over cloud-connected printers too (when Developer mode is off). These libraries will (theoretically) take into account the capabilities and expected data formats for every different printer+firmware combination when generating and sending messages; that's why they require the printer model and firmware version.
+- **`"custom"`** *(default)* — my [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) and [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator) libraries, written specifically for this project. They work on current firmware including LAN+DEV mode, take each printer's model and firmware version into account when generating messages, and sign commands for the printers that require it. They also work fine on older firmware, which is why they are now the default.
+- **`"bambulabs_api"`** — the mature third-party [bambulabs-api](https://pypi.org/project/bambulabs-api/) library, kept as a fallback. It cannot talk to a printer that requires signed commands.
 
 > [!WARNING]
-> The custom-library backend is **very experimental**. It speaks an undocumented protocol reconstructed from the Bambu Studio source and limited traffic analysis, it has only been tested on a small number of printers, and Bambu can change the protocol in any firmware update without notice. Only enable it for printers that the default `bambulabs-api` backend can't handle: if your printer runs an older LAN-only firmware (no Developer mode option), then leave this off, it won't provide any benefit and might not work at all.
+> The custom-library backend speaks an undocumented protocol reconstructed from the Bambu Studio source and traffic analysis, it has been tested on a small number of printers, and Bambu can change the protocol in any firmware update without notice. If it misbehaves on your printer, `"backend": "bambulabs_api"` is the escape hatch — and please file an issue.
 
-The two backends can be mixed freely on different printers: set the flag per printer, and each connects its own way.
+The two backends can be mixed freely: set the key per printer, and each connects its own way.
 
-### Command signing *(highly experimental)*
+### Command signing *(experimental)*
+
+Most users should turn on LAN + Developer mode and ignore this section. 
+
+Bambu firmware released after roughly January 2025 (after the rollout of their "Authorization Control" changes) rejects unsigned state-changing commands unless the printer is in LAN + Developer mode (which disables all Bambu cloud features). Reading slot data still works, but writes are blocked. The server auto-detects whether the printer requires signing and sends an error to the frontend if it's required but missing the required config files.
 
 > [!CAUTION]
-> Support for cloud-connected printers via command signing is the least-tested part of this project. It requires key material you must obtain yourself, it depends on protocol details that firmware updates may change, and it is off by default. Proceed at your own risk.
+> Supplying your own signing credentials requires key material from Bambu Studio that you must obtain yourself. Signing depends on protocol details that firmware updates may change. Proceed at your own risk.
 
 <details>
 <summary>Here be dragons (click to proceed)</summary>
-
-Bambu firmware released after roughly January 2025 (after the rollout of their "Authorization Control" changes) rejects unsigned state-changing commands. Reading slot data still works, but writes silently fail. Signing solves that, but requires getting access to certs and keys that Bambu does not publish.
 
 **You need three PEM files:**
 
@@ -254,23 +257,9 @@ The associated Linux `chain` and `crl` contents can currently be obtained by vis
    "crl_pem_file": "configs/signing/crl.pem",
    ```
 
-   All three are required together to enable signing — the server refuses to start if only some are set.
-3. Set both flags on each printer that needs signing:
+All three are required together. The server refuses to start if only some are set, or if one of the paths can't be read. One certificate set covers every printer in the config that the server detects requires signing.
 
-   ```json
-   {
-     "name": "My P2S",
-     "ip": "192.168.1.100",
-     "serial": "0123456789ABCDE",
-     "access_code": "87654321",
-     "enable_custom_libraries": true,
-     "enable_signing": true
-   }
-   ```
-
-On connect the server registers your certificate with the printer and waits until the printer confirms it trusts it, then signs each command it sends. Registration is lost whenever the printer power-cycles (and for some printers, when a different application connects to it), so this registration repeats on every connection. 
-
-If the credentials are missing or the printer never trusts the certificate, the server logs a warning and falls back to sending unsigned commands rather than failing outright. On firmware that requires signatures those writes will be rejected, and the rejection is reported back to the frontend.
+Older printers can only maintain one active trusted certificate at a time, and may delay new operations for up to 30s while processing the cert being used. For best results use the cert from the Bambu Studio version that you use the most; otherwise the server may temporarily lose its ability to send filament-change commands whenever Bambu Studio connects to the printer, and that delay for switching certs will be hit frequently.
 
 I welcome bug reports related to this experimental signing functionality, but won't provide any support for the process of obtaining the required files.
 
@@ -423,9 +412,7 @@ If all fallbacks fail, the server returns an error.
 
 **Tested LAN-Only hardware:** A1 (firmware 01.04.00.00) with AMS Lite (firmware 00.00.07.94). Should work with any printer and AMS supported by [bambulabs-api](https://pypi.org/project/bambulabs-api/). This is the default backend and the recommended one wherever it works.
 
-**Experimental LAN+DEV support:** Enabled per printer via `enable_custom_libraries` (see [Choosing a backend](#choosing-a-backend)). Tested on an A1 (firmware 01.05.00.00, AMS Lite) and a P2S (firmware 01.02.00.00, AMS 2 Pro). Everything about it is reconstructed from the Bambu Studio source and traffic analysis rather than official documentation (which Bambu doesn't provide), so treat it as experimental on any printer and expect firmware updates to potentially break it. If you know of an existing Python library with better-tested support for newer printers and firmwares, let me know.
-
-**Command signing:** Firmware from roughly January 2025 onward rejects unsigned writes for cloud-connected printers. Signing is supported but off by default and needs credentials you must supply yourself; see [Command signing](#command-signing-highly-experimental).
+**Custom-library backend:** Used by default, selectable per printer via `backend` (see [Choosing a backend](#choosing-a-backend)). Tested on an A1 (firmware 01.05.00.00, AMS Lite) and a P2S (firmware 01.02.00.00, AMS 2 Pro). Everything about it is reconstructed from the Bambu Studio source and traffic analysis rather than official documentation (which Bambu doesn't provide), so treat it as experimental on any printer and expect firmware updates to potentially break it. If you know of an existing Python library with better-tested support for newer printers and firmwares, let me know.
 
 **Auto-detected spools:** Since official Bambu spools that are read by the AMS directly come with some benefits (such as native remaining-filament tracking) that can't be directly replicated via this project, by default QRSpool will not let you write different filament data to such slots. If you want to be able to do so, set `"overwrite_auto_filament": true` for the target printer in the JSON config. The server also rejects change requests that happen while the printer is actively trying to read the target slot (not configurable).
 
@@ -603,5 +590,5 @@ The server does not rate-limit bad authentication requests, so is potentially vu
 - [jsQR](https://github.com/cozmo/jsQR): QR code decoding from the camera feed (frontend)
 - [Bootstrap](https://getbootstrap.com/): UI framework (frontend)
 - [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2: The default Bambu printer communication (backend), for older-firmware LAN-only printers. **Temporarily installed from a [fork](https://github.com/Aptimex/bambulabs_api)** rather than PyPI, pending an [upstream fix](https://github.com/BambuTools/bambulabs_api/pull/180).
-- [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) + [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator): MQTT connection handling, payload generation and signing (backend) for printers using the experimental `enable_custom_libraries` mode. **Not published to PyPI** — `requirements.txt` installs them directly from GitHub, so pip needs `git` available. Both are installed regardless of whether any printer enables that mode.
+- [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) + [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator): MQTT connection handling, payload generation and signing for printers on the default `"custom"` backend. Not published to PyPI, `requirements.txt` installs them directly from GitHub, so pip needs `git` available.
 - [paho-mqtt](https://pypi.org/project/paho-mqtt/) and [cryptography](https://pypi.org/project/cryptography/): underlying MQTT transport and signing primitives, pulled in automatically by those two

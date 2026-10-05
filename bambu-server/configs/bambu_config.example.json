@@ -2,38 +2,28 @@
   "auth_user": "",
   "auth_pass": "",
   "inactivity_timeout": 300,
-  "key_pem_file": "configs/signing/key.pem",
-  "cert_chain_pem_file": "configs/signing/chain.pem",
-  "crl_pem_file": "configs/signing/crl.pem",
   "printers": [
     {
-      "name": "My First Printer (bambulabs_api backend)",
+      "name": "My First Printer",
       "ip": "192.168.1.100",
       "serial": "0123456789ABCDE",
-      "access_code": "98765432",
-      "enable_custom_libraries": false
+      "access_code": "98765432"
     },
     {
-      "name": "My Second Printer (signed)",
+      "name": "My Second Printer (model and firmware given explicitly)",
       "ip": "192.168.1.101",
       "serial": "0123456789ABCDF",
+      "access_code": "87654321",
       "model_id": "N2S",
       "firmware_version": "01.05.00.00",
-      "access_code": "87654321",
-      "enable_custom_libraries": true,
-      "enable_signing": true,
-      "overwrite_auto_filament": false
+      "overwrite_auto_filament": true
     },
     {
-      "name": "My Third Printer (LAN/dev mode, no signing credentials)",
+      "name": "My Third Printer (original bambulabs_api library)",
       "ip": "192.168.1.102",
       "serial": "0123456789ABCDG",
-      "model_id": "N7",
-      "firmware_version": "01.02.00.00",
       "access_code": "76543210",
-      "enable_custom_libraries": true,
-      "enable_signing": false,
-      "overwrite_auto_filament": true
+      "backend": "bambulabs_api"
     }
   ]
 }

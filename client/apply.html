@@ -235,6 +235,13 @@
                     slotObj.display(document.querySelector("#filamentSlots"));
                 });
 
+                // Issues the server notices that may affect future operations come here
+                if (slotData.warning) {
+                    errorBox.innerText = slotData.warning;
+                    errorParent.classList.remove("alert-info", "collapse");
+                    errorParent.classList.add("alert-warning", "collapse.show");
+                }
+
                 if (activeSlotIDsJSON != null && !scannedSlotResolved) {
                     document.getElementById("selectedSlotName").innerText = "Could not resolve slot name from printer data";
                     document.getElementById("selectedSlotName").style.color = "red";

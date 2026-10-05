@@ -7,7 +7,9 @@ import mqtt
 from threading import Timer, Lock
 from base64 import b64encode, b64decode
 
-from configs.config_loader import AUTH_USER, AUTH_PASS, INACTIVITY_TIMEOUT, PRINTERS
+from configs.config_loader import (
+    AUTH_USER, AUTH_PASS, INACTIVITY_TIMEOUT, PRINTERS, uses_custom_backend,
+)
 
 app = Flask(__name__)
 CORS(app) # allow CORS for all domains on all routes.
@@ -30,7 +32,7 @@ _ALL_PRINTERS: dict = {}
 for _i, _cfg in enumerate(PRINTERS):
     _name = _cfg.get("name") or _cfg.get("ip", f"Printer {_i+1}")
     if _name not in _ALL_PRINTERS:
-        _backend = mqtt if _cfg.get("enable_custom_libraries") else bambu
+        _backend = mqtt if uses_custom_backend(_cfg) else bambu
         _ALL_PRINTERS[_name] = (_backend, _cfg)
 
 # Initialize the active backend to the first printer

@@ -8,7 +8,7 @@ import json
 from bambu_mqtt_generator import get_tray_type
 
 #local files
-from configs.config_loader import PRINTERS
+from configs.config_loader import PRINTERS, uses_custom_backend
 
 def getKnownFilaments(path = "./configs/bambu-ams-codes.json"):
     with open(path, "r") as f:
@@ -37,7 +37,7 @@ def _printer_name(idx, cfg):
 
 PRINTERS_MAP = {}
 for _i, _cfg in enumerate(PRINTERS):
-    if _cfg.get("enable_custom_libraries"):
+    if uses_custom_backend(_cfg):
         continue
     _name = _printer_name(_i, _cfg)
     if _name not in PRINTERS_MAP:  # first entry wins on duplicate names

@@ -25,6 +25,7 @@ from bambu_mqtt_generator import (
     check_command_result,
     extract_leaf_cert,
     get_payload_builder,
+    is_signature_required,
     load_config,
     load_pem,
     find_slot,
@@ -73,13 +74,19 @@ def makeError(msg: str):
 # ── Signing credentials ────────────────────────────────────────────────────────
 
 def _build_signer() -> Optional[MQTTSigner]:
-    """Build the shared signer from the configured PEM paths.
+    """Build the shared signer from the configured PEM paths, if any.
 
-    Signing is optional — firmware older than January 2025 accepts unsigned
-    commands — but it is all-or-nothing: the chain and CRL are what the
-    app_cert_install bootstrap registers, and without that registration the
-    printer rejects signed commands. The leaf certificate is the first block of
-    the chain, so it isn't configured separately.
+    Returning None is the normal outcome: signing credentials are non-trivial
+    to obtain and most setups never configure them. Printers in LAN + Developer
+    mode, and anything on firmware predating command signing, need none of
+    this, and nothing downstream treats a missing signer as an error — a
+    printer that turns out to require signing explains itself when a write is
+    attempted.
+
+    When the paths are given it is all-or-nothing: the chain and CRL are what
+    the app_cert_install bootstrap registers, and without that registration the
+    printer rejects signed commands too. The leaf certificate is the first
+    block of the chain, so it isn't configured separately.
     """
     configured = [
         ("key_pem_file", KEY_PEM_FILE),
@@ -95,12 +102,25 @@ def _build_signer() -> Optional[MQTTSigner]:
             f"Signing requires all three cert file fields; missing: {missing}"
         )
 
-    chain_pem = load_pem(CERT_CHAIN_PEM_FILE)
+    # Deliberately fatal: these were configured on purpose, so a path that
+    # cannot be read is a mistake worth reporting at startup rather than a
+    # surprise on the first write. The message names the file so it is fixable.
+    try:
+        chain_pem = load_pem(CERT_CHAIN_PEM_FILE)
+        key_pem = load_pem(KEY_PEM_FILE)
+        crl_pem = load_pem(CRL_PEM_FILE)
+    except OSError as e:
+        raise RuntimeError(
+            f"Could not read a configured signing file: {e}. Paths are relative "
+            "to bambu-server/. Remove the three *_pem_file fields to run "
+            "without signing."
+        ) from e
+
     return MQTTSigner(
         cert_pem=extract_leaf_cert(chain_pem),
-        key_pem=load_pem(KEY_PEM_FILE),
+        key_pem=key_pem,
         cert_chain_pem=chain_pem,
-        crl_pem=load_pem(CRL_PEM_FILE),
+        crl_pem=crl_pem,
     )
 
 
@@ -123,22 +143,12 @@ class _PrinterSession:
         self.model_id = cfg.get("model_id")
         self.firmware_version = cfg.get("firmware_version")
 
-        # Signing is per-printer and off unless asked for: it needs credentials
-        # most setups don't have. A printer whose firmware rejects unsigned
-        # commands opts in, without forcing the others in the same config to.
-        self.signing_enabled = bool(cfg.get("enable_signing", False))
-        if self.signing_enabled and _SIGNER is None:
-            print(f"[mqtt] {name}: enable_signing is set but no signing "
-                  "credentials are configured; commands will be sent unsigned")
-            self.signing_enabled = False
-
         # Whether setFilament may write over a slot the printer identified from
         # an RFID tag. Off by default; see _auto_detected.
         self.overwrite_auto_filament = bool(cfg.get("overwrite_auto_filament", False))
 
         self.client: Optional[BambuMQTTClient] = None
         self.builder = None
-        self._cert_trusted = False
         self._status: Optional[dict] = None
         self._lock = threading.Lock()
 
@@ -149,13 +159,17 @@ class _PrinterSession:
         return self.client is not None and self.client.is_connected
 
     def connect(self) -> None:
-        """Connect, register the signing certificate, and prepare the builder."""
+        """Connect, detect the printer's signing policy, and prepare the builder."""
         if self.connected:
             return
 
         self.disconnect()
 
-        client = BambuMQTTClient(self.printer)
+        # The client works out for itself whether this printer needs signed
+        # commands and registers the certificate only if it does, so the signer
+        # is handed over unconditionally — including when it is None, which is
+        # the normal case for a printer in LAN + Developer mode.
+        client = BambuMQTTClient(self.printer, signer=_SIGNER)
         client.connect(timeout=CONNECT_TIMEOUT)
         self.client = client
 
@@ -169,23 +183,21 @@ class _PrinterSession:
             raise
 
     def _finish_connect(self) -> None:
-        """Register the certificate and prepare the payload builder."""
+        """Prepare the payload builder, and log what signing turned out to need.
 
-        # The printer forgets registered certificates on power cycle, so this
-        # runs per connection. install_app_cert polls until the cert actually
-        # shows up in app_cert_list; signed commands sent before then are
-        # rejected with 84033545. Skipped entirely when signing is off, so a
-        # printer without credentials never pays for the bootstrap poll.
-        self._cert_trusted = False
-        if self.signing_enabled:
-            result = self.client.install_app_cert(
-                _SIGNER.build_app_cert_install(), cert_id=_SIGNER.get_cert_id()
-            )
-            self._cert_trusted = result["trusted"]
-            if not self._cert_trusted:
-                print(f"[mqtt] {self.name}: printer did not trust cert "
-                      f"{_SIGNER.get_cert_id()} after {result['attempts_used']} "
-                      f"polls; commands will be sent unsigned")
+        Certificate registration is not done here any more. BambuMQTTClient.connect
+        detects whether this printer rejects unsigned commands — one round trip,
+        no credentials needed — and only registers a certificate for the printers
+        that do. A printer in LAN + Developer mode, or on firmware predating
+        command signing, costs nothing beyond that probe.
+        """
+        signing = self.client.signing
+        if signing.required:
+            print(f"[mqtt] {self.name}: printer requires signed commands "
+                  f"(detected by {signing.detected_by or 'probe'})")
+        message = self.client.signing_status_message()
+        if message:
+            print(f"[mqtt] {self.name}: {message}")
 
         self._resolve_model()
         self.builder = get_payload_builder(self.model_id, self.firmware_version)
@@ -197,7 +209,6 @@ class _PrinterSession:
             except Exception:
                 pass
         self.client = None
-        self._cert_trusted = False
 
     def ensure_connected(self) -> Optional[dict]:
         """Connect if needed. Returns an error dict on failure, else None."""
@@ -335,11 +346,24 @@ def _gcode_state() -> dict:
     return {"state": (status or {}).get("gcode_state", "UNKNOWN")}
 
 
+def signingWarning() -> Optional[str]:
+    """Report discrepencies between signing requirements and capabilities."""
+    if _current is None or _current.client is None:
+        return None
+    return _current.client.signing_status_message()
+
+
 def getPrinterStatus():
     result = _gcode_state()
     if "error" in result:
         return result
-    return {"status": result["state"]}
+    status = {"status": result["state"]}
+
+    # Proactively warn if the printer requires signing but it's not configured
+    warning = signingWarning()
+    if warning:
+        status["warning"] = warning
+    return status
 
 
 def getPrinterState():
@@ -364,11 +388,15 @@ def getSlots():
     except Exception as e:
         return makeError(str(e))
 
-    return {
+    result = {
         "slots": slots,
         "displayKeys": DISPLAY_KEYS,
         "colorHexKeys": COLOR_HEX_KEYS,
     }
+    warning = signingWarning()
+    if warning:
+        result["warning"] = warning
+    return result
 
 
 def _validate_int(value, label, blank_is_zero=False):
@@ -474,27 +502,26 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, col
     except ValueError as e:
         return False, str(e)
 
-    message = _SIGNER.sign(payload) if _can_sign() else payload
-
     try:
-        response = _current.client.send_and_wait(message, timeout=COMMAND_TIMEOUT)
+        # send_command signs when this printer needs it, and if the printer
+        # rejects an unsigned command it registers the certificate and retries
+        # once by itself. Nothing here has to know which case applies.
+        response = _current.client.send_command(payload, timeout=COMMAND_TIMEOUT)
     except BambuMQTTError:
         return False, f"No response from printer within {COMMAND_TIMEOUT:.0f}s; the change may or may not have been applied"
 
     result = check_command_result(response)
     if not result["accepted"]:
+        # A signature rejection that survived the retry means the user has
+        # something to fix, so say what rather than quoting the error code.
+        if is_signature_required(result["err_code"]):
+            return False, (_current.client.signing_status_message()
+                           or "Printer requires signed commands.")
         detail = result["description"] or f"err_code={result['err_code']}"
         return False, f"Printer rejected command: {detail}"
 
     # Accepted, not yet applied. Printers take 5-10s to reflect a filament change, which is handled by the frontend polling /slots
     return True, ""
-
-
-def _can_sign() -> bool:
-    """Sign only when enabled for this printer and it trusts our certificate."""
-    return (_current is not None
-            and _current.signing_enabled
-            and _current._cert_trusted)
 
 
 def _build_filament_payload(code, colorHex, amsID, trayID, fType, minTemp, maxTemp):
