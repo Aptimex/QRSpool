@@ -1,8 +1,6 @@
 # Custom library backend ("backend": "custom", the default).
-# Not published to PyPI (yet), so these install straight from GitHub — which means pip
-# needs git on PATH. They pull their own dependencies (paho-mqtt, cryptography).
-bambu-mqtt-comms @ git+https://github.com/Aptimex/bambu-mqtt-comms.git@7b3af0a
-bambu-mqtt-generator @ git+https://github.com/Aptimex/bambu-mqtt-generator.git@bd50424
+bambu-mqtt-comms==0.1.0
+bambu-mqtt-generator==0.1.0
 
 # bambu.py backend ("backend": "bambulabs_api").
 # Temporarily pointing to my fork of 2.6.6 while waiting for this bugfix merge: https://github.com/BambuTools/bambulabs_api/pull/180

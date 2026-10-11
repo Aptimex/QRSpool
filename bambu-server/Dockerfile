@@ -1,7 +1,7 @@
 FROM python:3
 
 RUN apt-get update
-# git is needed by pip: two of the requirements install from GitHub rather than PyPI
+# git is needed by pip: sometimes requirements install from GitHub rather than PyPI during development
 RUN apt-get install -y openssl inetutils-ping git
 
 WORKDIR /bambu-server
