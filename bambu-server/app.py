@@ -15,7 +15,7 @@ app = Flask(__name__)
 CORS(app) # allow CORS for all domains on all routes.
 # CORS(app, origins=["http://localhost:3000"]) # Allow CORS from specific domains for better security
 
-SERVER_VERSION = "0.6.0"
+SERVER_VERSION = "0.8.0"
 
 app.config['BASIC_AUTH_USERNAME'] = AUTH_USER
 app.config['BASIC_AUTH_PASSWORD'] = AUTH_PASS

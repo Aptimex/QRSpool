@@ -1,17 +1,12 @@
-const CLIENT_VERSION = "0.7.0";
+const CLIENT_VERSION = "0.8.0";
 
 // Minimum server version required by this client. Bump manually on breaking API changes.
-const MIN_SERVER_VERSION = "0.0.0";
+const MIN_SERVER_VERSION = "0.5.0";
 
 // Minimum server version to support all current features. Servers between MIN and this
 // version still work but are missing newer functionality. Bump when adding non-breaking
 // new server features.
-const RECOMMENDED_SERVER_VERSION = "0.6.0";
-
-// First server version to support the colorName field in /setFilament.
-// Servers older than this receive requests without colorName to avoid a TypeError.
-// This compatability hack will be removed in the future
-const COLORNAME_MIN_VERSION = "0.5.0";
+const RECOMMENDED_SERVER_VERSION = "0.8.0";
 
 let cachedServerVersion = null;
 
@@ -69,13 +64,6 @@ async function checkServerCompatibility() {
     } else {
         hideServerVersionWarning();
     }
-}
-
-// colorName had to be added to the server API support OpenTag, but old servers throw an error if they recieve it
-// This check reverts to old behavior for older servers to maintain compatibility temporarily
-function serverSupportsColorName() {
-    if (cachedServerVersion === null) return false;
-    return !semverLt(cachedServerVersion, COLORNAME_MIN_VERSION);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -141,10 +129,8 @@ async function setFilamentSlot(IDs, colorHex, fType, brand, minTemp, maxTemp, co
         brand: brand,
         minTemp: minTemp,
         maxTemp: maxTemp,
+        colorName: colorName,
     };
-    if (serverSupportsColorName()) {
-        data.colorName = colorName;
-    }
     console.log(data);
     
     let headers = new Headers({

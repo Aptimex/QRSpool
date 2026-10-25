@@ -518,12 +518,12 @@ Credentials and settings are stored in the browser's `localStorage`, not cookies
 
 The server does not rate-limit bad authentication requests, so is potentially vulnerable to brute-force authentication attacks. Use a strong password and don't expose the server to the Internet.
 
-## 3rd Party Dependencies
+## Notable Dependencies
 
 - [jsQR](https://github.com/cozmo/jsQR): QR code decoding from the camera feed (frontend)
 - [Bootstrap](https://getbootstrap.com/): UI framework (frontend)
-- [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) + [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator): MQTT connection handling, payload generation and signing for printers on the default `"custom"` backend. Not published to PyPI, `requirements.txt` installs them directly from GitHub, so pip needs `git` available.
-- [paho-mqtt](https://pypi.org/project/paho-mqtt/) and [cryptography](https://pypi.org/project/cryptography/): underlying MQTT transport and signing primitives, pulled in automatically by those two
+- [Pickr](https://github.com/simonwep/pickr): Color picker for Tag Builder (frontend)
+- [bambu-mqtt-comms](https://pypi.org/project/bambu-mqtt-comms/) + [bambu-mqtt-generator](https://pypi.org/project/bambu-mqtt-generator/): my custom libraries built specifically for this project. Provides MQTT connection handling, filament-related command generation, and command signing for cloud-connected printers.
 - [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2: A secondary Bambu printer communication library, for older-firmware LAN-only printers. **Temporarily installed from a [fork](https://github.com/Aptimex/bambulabs_api)** rather than PyPI, pending an [upstream fix](https://github.com/BambuTools/bambulabs_api/pull/180).
 
 ## AI Disclaimer
