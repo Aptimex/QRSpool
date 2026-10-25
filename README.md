@@ -6,11 +6,9 @@
 
 </div>
 
-Update your 3D printer's filament slot settings by scanning a printed QR code or NFC tag with your phone. Point your camera at a filament code, then a slot code, and the printer updates its AMS settings instantly. 
+Update your 3D printer's filament slot settings by scanning a printed QR code or NFC tag with your phone. Point your camera at a filament code, then a slot code, and the printer updates its AMS settings instantly. Or use the REST API to change filament settings from your own independent project code.
 
-> **Beta:** Fully functional for Bambu Labs printers on pre-January-2025 firmware, using the well-established [bambulabs-api](https://pypi.org/project/bambulabs-api/) library. Printers on newer firmwares with LAN+DEV mode are supported by an **experimental** custom communication library that is off by default and must be enabled per printer — see [Choosing a backend](#choosing-a-backend). Please report any issues you encounter.
-
-**Experimental:** Now includes initial support for cloud-connected printers (**not** on LAN+DEV mode) on the latest firmwares, but only using local LAN communication (server still has to be on the same local network, this won't send cloud traffic). This requires you to obtain and provide appropriate certificates and keys, which is non-trivial. Full details are in the [Configuration](#configuration) section. Most users should stick with LAN+DEV mode for the easiest experience.
+> **Beta:** Fully functional for Bambu Labs printers in LAN+DEV mode (plus any printer running pre-January-2025 firmware). **Experimental** support for [cloud-connected printers](#command-signing-experimental). Please report any issues since I can't test with all printers.
 
 ## Table of Contents
 - [What It Does](#what-it-does)
@@ -44,7 +42,7 @@ Update your 3D printer's filament slot settings by scanning a printed QR code or
 
 QRSpool has two components:
 
-- **Frontend**: A website ([qrspool.com](https://qrspool.com)) that uses your phone's camera or NFC to scan filament tags. All image processing happens locally in your browser; no camera data is ever sent to any server.
+- **Frontend**: A website ([qrspool.com](https://qrspool.com)) that uses your phone's camera or NFC to scan filament tags. All image and tag processing happens locally in your browser; no camera data is ever sent to any server.
 - **Backend server**: A small server you run on your home network that bridges the website and your printer(s).
 
 The typical workflow:
@@ -54,7 +52,7 @@ The typical workflow:
 3. Scan the QR code (or tap an NFC tag) on the slot you want the filament settings applied to
 4. View and verify your printer's new AMS slot setting right from your phone
 
-*If you have an Android phone with Chrome, you can use standardized NFC tags instead of QR codes. For everyone else, custom web URL NFC tags can be used and provide similar functionality, but may require extra confirmation steps each time you scan a tag. See the [NFC Tags](#nfc-tags) section for info about supported formats and how to write tags.
+*Full NFC support is only available in Chrome on Android. Partial support is available on iOS and other browsers. See the [NFC Tags](#nfc-tags) section for more details.
 
 You can also scan just a filament code/tag and then manually select a slot to apply it to on your phone. 
 
@@ -66,12 +64,12 @@ Click below for a quick demo video of the QR scanning process in action:
 
 ## Requirements
 
-- **Printer:** A Bambu Labs printer in LAN-only mode, or LAN+DEV mode for newer printers/firmware (other printer brands not currently supported)
+- **Printer:** A Bambu Labs printer in LAN+DEV mode
 - **Server:** An always-on computer (server) on the same network as your printer, able to run either Docker (recommended) or Python ≥3.10
   - Will work best if it has a stable local IP address or DNS name
-  - Needs internet access when first installing dependencies, and `git` on PATH if you install natively rather than with Docker
+  - Air-gap friendly: Internet access only required for initial installation and updates
 - **Phone:** Any modern smartphone with a camera
-  - Chrome is recommended; Firefox and Safari support the core scanning features with some limitations
+  - Use Chrome for the best experience; Firefox and Safari support the core QR scanning features with some limitations
 
 ---
 
@@ -87,9 +85,9 @@ cd QRSpool/bambu-server
 cp configs/bambu_config.example.json configs/bambu_config.json
 ```
 
-Now edit `configs/bambu_config.json` and fill in your printer's IP address, serial number, and access code, and set a username and password for the server. Multiple printers can be configured in that file; just ensure each printer entry in that file receives a unique name. Those four values are all most setups need; see [Configuration](#configuration) for the full list of settings.
+Edit `configs/bambu_config.json` and fill in your printer's IP address, serial number, and access code, and set a username and password for the server. See [Configuration](#configuration) for the full list of available settings. Multiple printers can be configured, just ensure each printer entry in that file receives a unique name.
 
-**Run it with Docker (recommended):**
+**Run it with [Docker](https://docs.docker.com/engine/install/ubuntu/) (recommended):**
 
 ```bash
 sudo docker compose up --build -d
@@ -97,13 +95,10 @@ sudo docker compose up --build -d
 
 This starts the server on port 5123 using HTTP only. Configuration files are mounted live from the `configs/` folder and persist across container restarts. If you ever change a config, just run `sudo docker compose restart` to reload them. 
 
-> [!NOTE]
-> The build installs three of its dependencies from GitHub rather than PyPI (see [3rd Party Dependencies](#3rd-party-dependencies)), so the machine needs internet access the first time you build. Docker caches that step, so a later `--build` will *not* pick up new versions of those libraries — use `sudo docker compose build --no-cache` when you want to update them.
-
 <details>
 <summary>Running natively without Docker</summary>
 
-You'll need **git** installed as well as Python, because three of the requirements install from GitHub rather than PyPI (see [3rd Party Dependencies](#3rd-party-dependencies)). Using a virtual environment is recommended, and required on distributions that mark the system Python as externally managed.
+You'll need **git** installed as well as Python 3.10+. Using a virtual `venv` environment is recommended.
 
 ```bash
 cd bambu-server/
@@ -114,27 +109,22 @@ openssl req -new -x509 -keyout key.pem -out server.pem -days 3650 -nodes
 flask run --host=0.0.0.0 --port=5123
 ```
 
-To pick up later changes to those two libraries, re-run the install with `--upgrade`:
-
-```bash
-python3 -m pip install --upgrade --force-reinstall -r requirements.txt
-```
 </details>
 
 > [!WARNING]
-> The frontend and backend must both use HTTP or both use HTTPS. Mixing protocols will cause the browser to silently refuse communication.
+> The frontend and backend must both use HTTP or both use HTTPS. Mixing protocols will cause the browser to silently refuse communication in most browsers.
 
 > [!WARNING]
 > HTTP-only mode should only be used for testing out the project, unless you fully trust the security of your local network. Any device on your network can passively sniff your server credentials in every request when you use HTTP instead of HTTPS. 
 
 **HTTPS certificate options** (uncomment the appropriate `CMD` line in the Dockerfile):
-- **HTTP only** *(lowest friction to get started)*: No certificate needed. Use with `http://qrspool.com` (no `s` before the `:`) for the frontend. Upgrade to one of the HTTPS options below once you've decided you want to keep using this project. Remember, HTTP exposes your credentials to anyone on the local network.
-- **Real certificate via reverse proxy** *(recommended for continued use)*: Use a tool like [Caddy](https://caddyserver.com/) to add proper TLS. A free [DuckDNS](https://www.duckdns.org/) subdomain gets you a real domain name to attach a certificate to. Step-by-step instructions for this kind of setup are [included in the repo here.](bambu-server/HTTPS.md)
+- **HTTP only** *(lowest friction to get started)*: No certificate needed. Use with `http://qrspool.com` (no `s` before the `:`) for the frontend. Upgrade to one of the HTTPS options below once you've decided you want to keep using this project. Remember, HTTP exposes your server credentials to anyone on the local network.
+- **Real certificate via reverse proxy** *(recommended for continued use)*: Use a tool like [Caddy](https://caddyserver.com/) to add proper TLS. A free [DuckDNS](https://www.duckdns.org/) subdomain provides a real domain name to attach a certificate to. Step-by-step instructions for this kind of setup are [included in the repo here.](bambu-server/HTTPS.md)
 - **Self-signed cert** *(only use for dev work)*: Works immediately, but requires a browser exception confirmation on every browser restart, which is really annoying. Usable for development work, not recommend for long-term use. 
 
 ### Step 2: Connect the Frontend
 
-The frontend is already hosted at [qrspool.com](https://qrspool.com) (available over both HTTP and HTTPS) so you don't need to do any setup for that part on your end!
+The frontend is already hosted at [qrspool.com](https://qrspool.com) (available over both HTTP and HTTPS) so you don't need to do any setup for that part on your end. But you can self-host that part too if you want.
 
 1. Open **https://qrspool.com/settings.html** on your phone in Chrome (use **http://qrspool.com/settings.html** if your backend is HTTP-only)
 2. Enter your backend server's URL (e.g. `https://192.168.1.100:5123`), username, and password
@@ -146,83 +136,35 @@ The frontend is already hosted at [qrspool.com](https://qrspool.com) (available 
 Go to the **Scan** tab and grant camera and/or NFC access as prompted. Now you're ready to go!
 
 > [!TIP]
-> Firefox and Safari also support QR scanning, but lack torch (flashlight) control, vibrate-on-scan, and NFC scanning. Chrome on Android is recommended for the full experience.
+> Firefox and Safari support QR scanning, but lack torch (flashlight) control, vibrate-on-scan, and NFC scanning. Chrome on Android is recommended for the full experience.
 
-**Prefer to host the frontend yourself?** Serve the `client/` folder with any web server - for example, `python3 -m http.server` or the included `https-server.py` script. For fully offline use, download the Bootstrap and jsQR files referenced in each HTML file and update the references in the code to point to your local copies.
+**Prefer to host the frontend yourself?** Serve the `client/` folder with any web server. For example, `python3 -m http.server` or the included `https-server.py` script. That folder is fully self-contained with no external dependencies.
 
 ---
 
 ## Configuration
 
-All server settings live in `bambu-server/configs/bambu_config.json`. Copy `bambu_config.example.json` to get started; [`configs/README.md`](bambu-server/configs/README.md) is a condensed reference for every field. The server validates the file at startup and refuses to run if it finds a setting it doesn't recognize, so a typo is reported by name rather than silently ignored. With Docker the whole `configs/` folder is mounted live, so your settings survive rebuilds — run `sudo docker compose restart` after any change to reload it.
+Please see the [`bambu-server/configs/README.md`](bambu-server/configs/README.md) file for full instructions for setting up your config file.
 
-### Top-level settings
-
-| Key | Required | Default | Purpose |
-|---|---|---|---|
-| `printers` | yes | — | List of printer entries (see below). Each needs a unique `name`. |
-| `auth_user` / `auth_pass` | yes | — | Credentials the frontend uses to reach the server |
-| `inactivity_timeout` | no | `300` | Seconds of inactivity before the server drops its printer connection. `0` disables it. |
-| `key_pem_file`<br>`cert_chain_pem_file`<br>`crl_pem_file` | no | — | Paths to signing credentials, relative to `bambu-server/`. Almost nobody needs these; see [Command signing](#command-signing-experimental). |
-
-### Per-printer settings
-
-| Key | Required | Default | Purpose |
-|---|---|---|---|
-| `name` | recommended | the printer's IP | Display name; must be unique across printers |
-| `ip` | yes | — | Printer's local IP address |
-| `serial` | yes | — | Printer serial number |
-| `access_code` | yes | — | Access code from the printer's display (Settings > LAN Only) |
-| `backend` | no | `"custom"` | Which library talks to this printer (see below) |
-
-There is deliberately no signing setting: whether a printer requires signed commands is [detected automatically](#command-signing-experimental).
-
-#### Optional settings
-
-These apply only to the `"custom"` backend, and are ignored otherwise.
-
-| Key | Required | Default | Purpose |
-|---|---|---|---|
-| `overwrite_auto_filament` | no | `false` | Allow writes to AMS slots with loaded filaments that the AMS already identified from an official RFID tag. |
-| `model_id` | no | auto-detected | Printer model id, e.g. `N2S` for an A1 — see the table below |
-| `firmware_version` | no | auto-detected | e.g. `01.05.00.00`. Check Settings > Device > Firmware on the printer. |
-
-If you leave `model_id` or `firmware_version` out, the server asks the printer at connect time and logs what it found. Setting them explicitly skips that check and makes the initial connection faster and more reliable. If detection fails the server says so and names the two fields to set.
-
-Here's a list of valid `model_id` values associated with each printer name.  
-
-| Printer | Model ID | | Printer | Model ID |
-|---|---|---|---|---|
-| X1 Carbon | BL-P001 | | A1 | N2S |
-| X1 | BL-P002 | | A2L | N9 |
-| X1E | C13 | | H2C | O1C |
-| X2D | N6 | | H2C | O1C2 |
-| P1P | C11 | | H2D | O1D |
-| P1S | C12 | | H2D Pro | O1E |
-| P2S | N7 | | H2S | O1S |
-| A1 mini | N1 | | | |
-
-For convenience, supplying one these exact printer names instead of an ID is also supported. The H2C is the one exception: it ships as two model IDs with different capabilities, so the name `H2C` is rejected as ambiguous. Use `O1C` or `O1C2` — or leave `model_id` out entirely and let the server detect which one your printer is. Note that name and ID values are both are matched case-insensitively.
-
-This table is maintained in the [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator) library, which is where these IDs come from; check there for possible updates if a newer printer is missing here.
+All server settings live in `bambu-server/configs/bambu_config.json`. Copy `bambu_config.example.json` to get started. The server validates the file at startup and refuses to run if there's a problem with that file. With Docker the whole `configs/` folder is mounted live; just run `sudo docker compose restart` after any change to reload it.
 
 ### Choosing a backend
 
 Each connected printer is handled by one of two communication backends, chosen by its `backend` key:
 
 - **`"custom"`** *(default)* — my [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) and [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator) libraries, written specifically for this project. They work on current firmware including LAN+DEV mode, take each printer's model and firmware version into account when generating messages, and sign commands for the printers that require it. They also work fine on older firmware, which is why they are now the default.
-- **`"bambulabs_api"`** — the mature third-party [bambulabs-api](https://pypi.org/project/bambulabs-api/) library, kept as a fallback. It cannot talk to a printer that requires signed commands.
+- **`"bambulabs_api"`** — the older third-party [bambulabs-api](https://pypi.org/project/bambulabs-api/) library, kept as a fallback. It cannot communicate with cloud-connected printers unless they are on a pre-January 2025 firmware.
 
 > [!WARNING]
-> The custom-library backend speaks an undocumented protocol reconstructed from the Bambu Studio source and traffic analysis, it has been tested on a small number of printers, and Bambu can change the protocol in any firmware update without notice. If it misbehaves on your printer, `"backend": "bambulabs_api"` is the escape hatch — and please file an issue.
+> The custom backend speaks an undocumented protocol reconstructed from the Bambu Studio source and traffic analysis. It has been tested on a small number of printers, but Bambu can change the protocol in any future firmware update without notice.
 
-The two backends can be mixed freely: set the key per printer, and each connects its own way.
+The two backends can be mixed freely, you don't need to set the same backend for all printers.
 
 ### Command signing *(experimental)*
 
 Most users should turn on LAN + Developer mode and ignore this section. 
 
-Bambu firmware released after roughly January 2025 (after the rollout of their "Authorization Control" changes) rejects unsigned state-changing commands unless the printer is in LAN + Developer mode (which disables all Bambu cloud features). Reading slot data still works, but writes are blocked. The server auto-detects whether the printer requires signing and sends an error to the frontend if it's required but missing the required config files.
+Bambu firmware released after roughly January 2025 (after the rollout of their "Authorization Control" changes) rejects unsigned state-changing commands unless the printer is in LAN + Developer mode (which disables all Bambu cloud features). Reading slot data still works, but writes are blocked. The server auto-detects whether the printer is in LAN+DEV mode; if it's not, and the required signing files are missing, it reports an error to the frontend.
 
 > [!CAUTION]
 > Supplying your own signing credentials requires key material from Bambu Studio that you must obtain yourself. Signing depends on protocol details that firmware updates may change. Proceed at your own risk.
@@ -244,7 +186,7 @@ The `key` is normally the hardest thing to get, but currently can be easily obta
 
 The associated Linux `chain` and `crl` contents can currently be obtained by visiting the API URL [mentioned here](https://bambuzled.github.io/posts/bambu-auth-control/#the-current-cert-api) and parsing the JSON response.
 
-**None of these files are included with this project, and requests for them will be ignored.**
+**None of these signing files are included with this project, and requests for them will be ignored.**
 
 **Setup:**
 
@@ -269,14 +211,14 @@ I welcome bug reports related to this experimental signing functionality, but wo
 
 ## Scanning and Applying Filament
 
-From the **Scan** tab, point your camera at a filament or slot QR code until you get a scan confirmation. Once you have scanned a pair, the scanned filament will be automatically applied to the scanned slot in the active printer. Alternatively, you can scan just a filament tag and then use the Apply page to manually select a slot to apply it to. 
+From the **Scan** tab, point your camera at a filament or slot QR code until you get a scan confirmation. Once you have scanned a pair, the scanned filament will be automatically applied to the scanned slot in the active printer. Alternatively, you can scan just a filament tag and then use the Apply page to manually select a printer/slot to apply it to. 
 
 Scanning both tag types in either order causes the filament to be applied to the slot automatically. If you'd prefer to confirm before applying, there's a setting for that on the Settings page.
 
-If you have multiple printers configured, you can manually change the active printer using the dropdown at the top of the page, or include the printer name in the slot QR code to link it to a specific printer. 
+If you have multiple printers configured, you can manually change the active printer using the dropdown at the top of the page, or include the printer name in the slot QR code to auto-link it to a specific printer.
 
 > [!TIP]
-> Check out the Settings tab to customize various scan behavior options to best suit your prefered workflow. 
+> Check out the Settings tab to customize various scan behavior options to best suit your preferred workflow. 
 
 ---
 
@@ -295,7 +237,7 @@ Example:
 OS1.0|PLA Matte|FF5733|Bambu|190|230
 ```
 
-Fields are parsed left to right. You can omit fields from the right end, or leave individual fields empty if you don't need them. `OS1.0` is the format identifier the scanner uses to recognize compatible codes.
+Fields are parsed left to right. You can omit fields from the right end, or leave individual fields empty if you don't need them. `OS1.0` is the format identifier the scanner uses to recognize compatible codes, so it's mandatory.
 
 > [!NOTE]
 > For Bambu printers, `TYPE` and `BRAND` must exactly match a profile name from the Bambu Studio filament dropdown. See [Bambu Printer Notes](#bambu-printer-notes) for details.
