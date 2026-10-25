@@ -73,8 +73,8 @@ This table is maintained in the [bambu-mqtt-generator](https://github.com/Aptime
 
 Two backends are available for server-to-printer communication:
 
-- `"custom"` *(default)*: [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) + [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator), both written specifically for this project based on Bambu Studio source code. Supports modern firmware, tailors each message to your printer model and firmware version, and enables command signing with some extra manual setup.
-- `"bambulabs_api"`: The third-party [bambulabs_api](https://github.com/BambuTools/bambulabs_api) library. It is slow to incorporate updates for newer printers and firmwares, and has no support for command signing. May be more reliable for pre-2025 printer firmwares. Will likely be removed in the future.
+- `"custom"` *(default)*: [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) + [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator), both written specifically for this project based on Bambu Studio source code. Supports modern firmware, tailors each message to your printer model and firmware version, and enables command signing for cloud-connected printers with some extra manual setup.
+- `"bambulabs_api"`: The third-party [bambulabs_api](https://github.com/BambuTools/bambulabs_api) library. It is slow to incorporate updates for newer printers and firmwares, and has no support for cloud-connected printers on modern firmwares. Will likely be removed in the future.
 
 Each printer can have its backend selected independent of other printers.
 

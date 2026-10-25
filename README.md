@@ -148,18 +148,6 @@ Please see the [`bambu-server/configs/README.md`](bambu-server/configs/README.md
 
 All server settings live in `bambu-server/configs/bambu_config.json`. Copy `bambu_config.example.json` to get started. The server validates the file at startup and refuses to run if there's a problem with that file. With Docker the whole `configs/` folder is mounted live; just run `sudo docker compose restart` after any change to reload it.
 
-### Choosing a backend
-
-Each connected printer is handled by one of two communication backends, chosen by its `backend` key:
-
-- **`"custom"`** *(default)* — my [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) and [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator) libraries, written specifically for this project. They work on current firmware including LAN+DEV mode, take each printer's model and firmware version into account when generating messages, and sign commands for the printers that require it. They also work fine on older firmware, which is why they are now the default.
-- **`"bambulabs_api"`** — the older third-party [bambulabs-api](https://pypi.org/project/bambulabs-api/) library, kept as a fallback. It cannot communicate with cloud-connected printers unless they are on a pre-January 2025 firmware.
-
-> [!WARNING]
-> The custom backend speaks an undocumented protocol reconstructed from the Bambu Studio source and traffic analysis. It has been tested on a small number of printers, but Bambu can change the protocol in any future firmware update without notice.
-
-The two backends can be mixed freely, you don't need to set the same backend for all printers.
-
 ### Command signing *(experimental)*
 
 Most users should turn on LAN + Developer mode and ignore this section. 
@@ -224,7 +212,10 @@ If you have multiple printers configured, you can manually change the active pri
 
 ## Creating Tags
 
-The **[Tag Builder](https://qrspool.com/tag.html)** page (dropdown on the top nav bar) can help you generate everything both filament and slot tags, for both printable QR codes and NFC tags. On Android with Chrome it can also write the data straight to an NTAG-type NFC tag. Lots of data is pre-populated or selectable using information queried from the backend server, if configured.
+The **[Tag Builder](https://qrspool.com/tag.html)** page (dropdown on the top nav bar) can help you generate everything both filament and slot tags, for both printable QR codes and NFC tags. On Android with Chrome it can also write the data straight to an NTAG-type NFC tag. Lots of data is pre-populated or selectable using information queried from the backend server, if configured. For maximum compatibility, I recommend writing a URL Record and either an OpenSpool or Text record to each tag.
+
+> [!CAUTION]
+> Due to an intentionally-restrictive design of Bambu printer firmware, `TYPE` and `BRAND` must exactly match a profile name from the Bambu Studio filament dropdown. Matching against your custom profiles is a complicated and fragile endeavour, but [Bambu Printer Notes](#bambu-printer-notes) describes at a high level how you might be able to accomplish that.
 
 ### Filament QR Codes
 
@@ -240,9 +231,6 @@ OS1.0|PLA Matte|FF5733|Bambu|190|230
 ```
 
 Fields are parsed left to right. You can omit fields from the right end, or leave individual fields empty if you don't need them. `OS1.0` is the format identifier the scanner uses to recognize compatible codes, so it's mandatory.
-
-> [!NOTE]
-> For Bambu printers, `TYPE` and `BRAND` must exactly match a profile name from the Bambu Studio filament dropdown. See [Bambu Printer Notes](#bambu-printer-notes) for details.
 
 ### Slot QR Codes
 
@@ -275,9 +263,9 @@ The printer name must be the same value that you configured in the `bambu_config
 The easiest way to build one of these is the Tag Builder page, which lists your printer's slots in a dropdown. To find an `ids` value manually, open the Apply page and expand the "↓ Show/Hide All Slot Info ↓" section under any slot, then tap/click the value to copy it. 
 
 > [!WARNING]
-> Slot IDs are assigned by the printer itself and can change with firmware updates or AMS hardware changes (such as adding or removing a daisy-chained unit). Double-check that all your codes/tags still reference the expected slots after changes to any of those configurations. 
+> Slot IDs are assigned by the printer itself and can change with firmware updates or AMS hardware changes (such as adding or removing a daisy-chained unit). Double-check that all your codes/tags still reference the expected slots after any hardware or firmware changes. 
 
-If you have multiple printers configured, only one printer is "active" at a time, and switching printers takes a few seconds. For the fastest workflow, scan the filament tag first, then the slot tag.
+If you have multiple printers configured, only one printer is "active" at a time, and switching printers can take anywhere from a few seconds to ~30s depending on the model and current printer state. For the fastest workflow, scan the filament tag first, then the slot tag.
 
 ### Printing Your Tags
 
@@ -290,14 +278,14 @@ Tips for reliable scanning:
 
 ### Attaching Tags to Spools
 
-A custom clip with multiple attachment options for filament spools [is available for free on MakerWorld](https://makerworld.com/en/models/1408538-filament-clip-for-qrspool-tags). It's designed for QR2STL models with a 5mm keychain hole. Use the JSON mentioned above to quickly generated a compatible model. 
+A custom clip with multiple attachment options for filament spools [is available for free on MakerWorld](https://makerworld.com/en/models/1408538-filament-clip-for-qrspool-tags). It's designed for QR2STL models with a 5mm keychain hole. Use the JSON generated by the tag builder to quickly generated a compatible model. 
 
 > [!WARNING]
 > Don't try to leave this clip on the filament when you put the spool in your AMS, they are not designed for that and will likely cause issues. However, if you are using an AMS Lite, on most spools they can be left clipped onto the outside edge of the spool. 
 
 ### NFC Tags
 
-**On Android with Chrome**, the Scan and Apply pages show a button to enable NFC scanning. Once enabled, tapping an NFC tag works just like scanning a QR code with the camera. This only works with [NTAG-type tags](https://www.nxp.com/products/NTAG213_215_216), NOT the (more expensive) Mifare Classic tags used by Bambu. The Web NFC library does not support RFID tag types other than NTAG.
+**On Android with Chrome**, the Scan and Apply pages show a button to enable NFC scanning. Once enabled, tapping an NFC tag works just like scanning a QR code with the camera. This only works with [NTAG-type tags](https://www.nxp.com/products/NTAG213_215_216), NOT the (more expensive) Mifare Classic tags used by Bambu. The Web NFC library does not support any RFID tag types other than NTAG.
 
 > [!IMPORTANT]
 > The Web NFC API only works when the website is using HTTPS, or is running on `localhost`. So you must also be using HTTPS (self-signed cert works) on your backend server to make use of this feature when using QRSpool.com.
@@ -308,13 +296,13 @@ QRSpool currently supports several different NFC formats:
 - [OpenTag3D](https://opentag3d.info/spec) tags; but see [OpenTag3D Field Length Limits](#opentag3d-field-length-limits) for important notes if you're using OpenTag3D with a Bambu printer
 - URL records pointing at qrspool.com with filament and/or slot data in the [URL parameters](#url-parameters)
 
-**Writing NFC tags from QRSpool:** on Android with Chrome, the [Tag Builder](https://qrspool.com/tag.html) page writes both filament and slot tags directly. Pick which formats to include, hold a tag against your phone, and it's written (silently overwriting all existing data). Each selected format becomes its own NDEF record on the same tag, so one tag can serve both native phone handling and QRSpool's dedicated NFC scanner seamlessly. The page also shows an approximate byte count so you can tell whether your selection will fit on the specific NTAG you're using.
+**Writing NFC tags from QRSpool:** on Android with Chrome, the [Tag Builder](https://qrspool.com/tag.html) page writes both filament and slot tags directly. Pick which data formats to include, click Write NFC Tag, and hold a tag against the back of your phone. **It will silently overwriting any existing data on the tag.** Each selected format becomes its own NDEF record on the same tag, so one tag can serve both native phone handling and QRSpool's dedicated NFC scanner seamlessly. The page also shows an approximate byte count so you can tell whether your selection will fit on the specific NTAG you're using.
 
-**Combined tags:** the slot section has a *Combined tag* switch that folds the filament data into the slot tag, so a single tap applies that filament to that slot with no second scan. I haven't come across a real use case for this yet, but it's supported.
+**Combined tags:** the slot section has a *Combined tag* switch that combines the filament data into the slot tag data, so a single tap applies that filament to that slot with no second scan. I haven't come across a real use case for this yet, but it's supported.
 
-To write tags from another device, or to write OpenTag3D tags, use a general-purpose NFC app like [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter), and copy the tag data out of the Tag Builder page. If you want to use OpenTag3D, you can instead use the [OpenTag3D Make tab](https://opentag3d.info/make).
+To write tags using a different device, use a general-purpose NFC app like [NFC Tools](https://play.google.com/store/apps/details?id=com.wakdev.wdnfc) or [NFC TagWriter](https://play.google.com/store/apps/details?id=com.nxp.nfc.tagwriter), and copy the tag data out of the Tag Builder page. If you want to write OpenTag3D tags, you can instead use the [OpenTag3D Make tab](https://opentag3d.info/make).
 
-**On iOS (and any phone without in-browser NFC):** Use URL-based NFC tags. [NFC Tools](https://apps.apple.com/us/app/nfc-tools/id1252962749) and [NFC TagWriter](https://apps.apple.com/us/app/nfc-tagwriter-by-nxp/id1246143221) are also available in iOS for this purpose. A tag containing a URL like this will open the site with filament data pre-loaded when tapped, and does not require you to already have the website/browser open.
+**On iOS (and any phone without in-browser NFC):** Write URl Records as the first record in the NFC tags. [NFC Tools](https://apps.apple.com/us/app/nfc-tools/id1252962749) and [NFC TagWriter](https://apps.apple.com/us/app/nfc-tagwriter-by-nxp/id1246143221) are also available in iOS for this purpose. A tag containing a URL like this will open the site with filament data pre-loaded when tapped, and does not require you to already have the website/browser open.
 
 Example filament tag string:
 ```
@@ -333,7 +321,7 @@ https://qrspool.com?qrstring=OS1.0|PLA|FF5733|Bambu|190|230&slotstring=SLOT|{"am
 ```
 
 > [!TIP]
-> NFC tags support multiple NDEF records. You can set the first record to a URL (for native smartphone handling) and the second to a plain-text QR string, or one of the other supported formats. Most native phone scans will only process the first record (the URL), while QRSpool.com works through the records in order and uses the first one it recognizes, giving you maximum compatibility with both approaches across all phones in one tag. The Tag Builder page writes tags in exactly this layout.
+> NFC tags support multiple NDEF records. You can set the first record to a URL (for native smartphone handling) and the second to a plain-text QR string, or one of the other supported formats. Most native phone scans will only process the first record (the URL), while QRSpool.com reads through the records in order and uses the first one it recognizes, giving you maximum compatibility with both approaches across all phones in one tag. The Tag Builder page writes tags in exactly this layout.
 
 See also the [URL Parameters](#url-parameters) section for additional supported URL formats available for power users. 
 
@@ -341,29 +329,23 @@ See also the [URL Parameters](#url-parameters) section for additional supported 
 
 ## Bambu Printer Notes
 
-**Filament code matching:** `BRAND` and `TYPE` in a tag must match a profile name from Bambu Studio exactly (e.g. `Bambu` + `PLA Matte`). The server combines them and looks up the internal code (`GFA01` in this example) in the `bambu-ams-codes.json` file.
+**Filament code matching:** `BRAND` and `TYPE` in a tag must match a profile name from Bambu Studio exactly (e.g. `Bambu` + `PLA Matte`). The server combines them and looks up the internal code (`GFA01` in this example) in the `bambu-server\configs\bambu-ams-codes.json` file. **None of the settings set in the tag data have any actual effect on prints, everything is controlled by the slicer based on the profile settings.** However, the min/max nozzle temps are used when you use the printer touchscreen to load/unload a filament slot.
 
-If an exact match fails, the server tries these fallbacks in order:
+If an exact code match fails, the server tries these fallbacks in order:
 1. Replace the brand with `Generic` and search again
 2. Treat the `TYPE` field directly as a filament code
 3. If `BRAND` is `RAWCODE`, assumes `TYPE` contains the exact internal code (like `GFA01`; also useful for [custom AMS profiles](https://forum.bambulab.com/t/how-to-add-custom-filaments-so-you-can-select-them-in-the-ams/52140))
 
 If all fallbacks fail, the server returns an error. 
 
+It is possible to match against custom profiles, but complicated. Essentially you have to make one from scratch (not based on an existing profile) and then identify the internal code assigned to it (should start with `P`). Then you can either manually add a brand+type mapping to that code in the server's `bambu-server\configs\bambu-ams-codes.json` file, or write the `RAWCODE` directly to your tags. Note that only slicers that have a local copy of that profile (assigned to that code) will be able to use/recognize it, and may silently overwrite the printer's internal storage of that code to a generic profile code if they don't.
+
 > [!NOTE]
-> In testing, unrecognized/invalid raw codes were silently ignored by the printer and never caused any problems. 
+> In testing, unrecognized/invalid raw codes were save to the printer but silently ignored by the slicer and never caused any problems. 
 
-**Temperature fields** are generally ignored by Bambu printers; the profile defaults are used instead. You can safely omit `MIN_TEMP` and `MAX_TEMP` from your tags, but it may be worth keeping them in case that ever changes. 
+**Empty slot limitation:** Currently-empty slots can't have their filament settings changed. Make sure filament is finished loading before trying to apply a tag to the slot. 
 
-**Empty slot limitation:** Currently-empty slots can't have their filament settings changed. Make sure filemant is loaded before trying to apply a tag to the slot. 
-
-**Cloud-connected printers:** Slot data can be read, but applying filament changes will silently fail. LAN-only mode (LAN+DEV on newer printers/firmware) is required for writes.
-
-**Tested LAN-Only hardware:** A1 (firmware 01.04.00.00) with AMS Lite (firmware 00.00.07.94). Should work with any printer and AMS supported by [bambulabs-api](https://pypi.org/project/bambulabs-api/). This is the default backend and the recommended one wherever it works.
-
-**Custom-library backend:** Used by default, selectable per printer via `backend` (see [Choosing a backend](#choosing-a-backend)). Tested on an A1 (firmware 01.05.00.00, AMS Lite) and a P2S (firmware 01.02.00.00, AMS 2 Pro). Everything about it is reconstructed from the Bambu Studio source and traffic analysis rather than official documentation (which Bambu doesn't provide), so treat it as experimental on any printer and expect firmware updates to potentially break it. If you know of an existing Python library with better-tested support for newer printers and firmwares, let me know.
-
-**Auto-detected spools:** Since official Bambu spools that are read by the AMS directly come with some benefits (such as native remaining-filament tracking) that can't be directly replicated via this project, by default QRSpool will not let you write different filament data to such slots. If you want to be able to do so, set `"overwrite_auto_filament": true` for the target printer in the JSON config. The server also rejects change requests that happen while the printer is actively trying to read the target slot (not configurable).
+**Auto-detected spools:** Since official Bambu spools that are read by the AMS directly come with some benefits (such as native remaining-filament tracking) that can't be directly replicated via MQTT, by default the server will not let you write different filament data to auto-detected slots. If you want to be able to do so, set `"overwrite_auto_filament": true` for the target printer in your JSON config. The server also rejects change requests that are sent while the printer is actively trying to read the target slot (not configurable).
 
 ---
 
@@ -536,10 +518,16 @@ Credentials and settings are stored in the browser's `localStorage`, not cookies
 
 The server does not rate-limit bad authentication requests, so is potentially vulnerable to brute-force authentication attacks. Use a strong password and don't expose the server to the Internet.
 
-### 3rd Party Dependencies
+## 3rd Party Dependencies
 
 - [jsQR](https://github.com/cozmo/jsQR): QR code decoding from the camera feed (frontend)
 - [Bootstrap](https://getbootstrap.com/): UI framework (frontend)
-- [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2: The default Bambu printer communication (backend), for older-firmware LAN-only printers. **Temporarily installed from a [fork](https://github.com/Aptimex/bambulabs_api)** rather than PyPI, pending an [upstream fix](https://github.com/BambuTools/bambulabs_api/pull/180).
 - [bambu-mqtt-comms](https://github.com/Aptimex/bambu-mqtt-comms) + [bambu-mqtt-generator](https://github.com/Aptimex/bambu-mqtt-generator): MQTT connection handling, payload generation and signing for printers on the default `"custom"` backend. Not published to PyPI, `requirements.txt` installs them directly from GitHub, so pip needs `git` available.
 - [paho-mqtt](https://pypi.org/project/paho-mqtt/) and [cryptography](https://pypi.org/project/cryptography/): underlying MQTT transport and signing primitives, pulled in automatically by those two
+- [bambulabs-api](https://pypi.org/project/bambulabs-api/) ≥2.6.2: A secondary Bambu printer communication library, for older-firmware LAN-only printers. **Temporarily installed from a [fork](https://github.com/Aptimex/bambulabs_api)** rather than PyPI, pending an [upstream fix](https://github.com/BambuTools/bambulabs_api/pull/180).
+
+## AI Disclaimer
+
+The custom libraries were largely vibe-coded using Claude with the goal of translating relevant features from Bambu Studio source code to Python libraries. All code in this project prior to ~April 2026 was written by me; most code added after that date was written by Claude in small batches based on my careful instructions and reviewed/tested at each step. All documentation in this project has been either written directly or heavily edited by me. 
+
+The overall functionality of all code has been extensively tested both by me and by Claude against my own printers. Claude has been able to catch and fix far more bugs than I ever could have on my own.
