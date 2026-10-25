@@ -1,89 +1,309 @@
 <!DOCTYPE html>
 <html class="h-100">
     <head>
-        <title>Settings</title>
+        <title>Tag Builder</title>
         <link rel="icon" href="media/logo-bgc.svg" sizes="any" type="image/svg+xml" />
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
+        <script src="javascript/debug.js"></script>
         <script src="javascript/localStorage.js"></script>
         <script src="javascript/filament.js"></script>
+        <script src="javascript/server.js"></script>
         <script src="javascript/nav.js"></script>
 
+        <script src="vendor/pickr/pickr.min.js"></script>
+        <script src="javascript/tagBuilder.js" defer></script>
+
         <link rel="stylesheet" href="./css/global.css">
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
+        <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+        <link href="vendor/pickr/monolith.min.css" rel="stylesheet">
     </head>
-    
+
     <body class="d-flex flex-column h-100">
         <div id="navPlaceholder">
-            <script>insertNav(document.querySelector("#navPlaceholder"));</script>
+            <script>insertNav(document.querySelector("#navPlaceholder"), "#nav-tag");</script>
         </div>
 
         <main class="flex-shrink-0">
             <div class="container">
                 <p id="error"></p>
 
-                <form action="">
-                    <h1>Make Tag</h1>
+                <h1>Tag Builder</h1>
+                <p class="form-text mt-0">
+                    Build a <a href="#filament-tag">filament tag</a> for a spool, or a <a href="#slot-tag">slot tag</a> for an AMS slot. 
+                    Copy the data into a QR code generator, or write it straight to an NFC tag.
+                </p>
+
+                <hr>
+
+                <h2 id="filament-tag">Filament Tag</h2>
+
+                <form onsubmit="return false;">
+                    <div class="mb-3">
+                        <label for="tagType" class="form-label">Type</label>
+                        <input type="text" class="form-control" id="tagType" placeholder="PLA Matte" oninput="refresh()">
+                        <div class="form-text">Must match a Bambu Studio filament profile name, e.g. <code>PLA Matte</code> or <code>PETG HF</code>.</div>
+                    </div>
 
                     <div class="mb-3">
-                        <label for="basic-url" class="form-label">Type</label>
+                        <label for="colorHex" class="form-label">Hex Color</label>
                         <div class="input-group">
-                            <input type="text" class="form-control" id="tagType" placeholder="PLA">
+                            <span class="input-group-text">#</span>
+                            <input type="text" class="form-control" id="colorHex" placeholder="1E8440"
+                                maxlength="7" autocapitalize="off" autocomplete="off" spellcheck="false"
+                                oninput="onColorTextInput()">
+                            <span class="input-group-text p-1">
+                                <button type="button" id="colorPickerBtn" title="Pick a color"></button>
+                            </span>
+                        </div>
+                        <div class="form-text">Pick a suggested or custom color with the swatch, or type/paste a 6-digit hex value.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="brand" class="form-label">Brand</label>
+                        <input type="text" class="form-control" id="brand" placeholder="Bambu" oninput="refresh()">
+                    </div>
+
+                    <div class="row">
+                        <div class="col mb-3">
+                            <label for="minTemp" class="form-label">Min Temp (C)</label>
+                            <input type="number" class="form-control" id="minTemp" placeholder="190" min="0" oninput="refresh()">
+                        </div>
+                        <div class="col mb-3">
+                            <label for="maxTemp" class="form-label">Max Temp (C)</label>
+                            <input type="number" class="form-control" id="maxTemp" placeholder="230" min="0" oninput="refresh()">
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="basic-url" class="form-label">Hex Color</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="colorHex" placeholder="01AB23">
-                        </div>
+                        <label for="label" class="form-label">Printed Label <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="label" rows="2" oninput="refresh()"></textarea>
+                        <div class="form-text">Text embossed on the 3D printed tag.</div>
+                        <button class="btn btn-primary btn-sm mt-2" type="button" onclick="fillDefaultLabel()">Auto-generate Label</button>
                     </div>
 
-                    <div class="mb-3">
-                        <label for="basic-url" class="form-label">Brand</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="brand" placeholder="Bambu">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="basic-url" class="form-label">Min Temp (C)</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="minTemp" placeholder="190">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="basic-url" class="form-label">Max Temp (C)</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="maxTemp" placeholder="230">
-                        </div>
-                    </div>
-
-                    <button class="btn btn-primary" type="button" name="makeTag", onclick="buildTag()">Make Tag</button>
-                    <button class="btn btn-warning" type="button" name="makeTag", onclick="clearBuilder()">Clear Form</button>
-
+                    <button class="btn btn-primary" type="button" onclick="saveActiveTag()">Save as Active Tag</button>
+                    <button class="btn btn-secondary" type="button" onclick="loadActiveTag(true)">Load Active Tag</button>
+                    <button class="btn btn-warning" type="button" onclick="clearBuilder()">Clear Form</button>
+                    <div id="saveMsg" class="form-text mt-2"></div>
                 </form>
 
-                <h1>Current Tag Strings</h1>
-                <h2>QR String</h2>
+                <h3 class="h5 mt-4">OpenSpool 1.0 String</h3>
+                <p class="form-text mt-0">
+                    The QRSpool format. Put this in a QR code, or write it to an NFC tag as a plain text record.
+                </p>
                 <div class="copy-box">
-                    <p id="QR-string"></p>
-                    <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#QR-string')">Copy</button>
+                    <p id="QR-string" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#QR-string', this)">Copy</button>
                 </div>
 
-                <h2>OpenSpool JSON String</h2>
+                <h3 class="h5 mt-3">OpenSpool JSON</h3>
+                <p class="form-text mt-0">
+                    <a href="https://openspool.io/rfid.html#protocol" target="_blank" rel="noopener noreferrer">OpenSpool</a>
+                    tag contents. On an NFC tag this goes in an <code>application/json</code> record.
+                </p>
                 <div class="copy-box">
-                    <p id="OS-JSON"></p>
-                    <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#OS-JSON')">Copy</button>
+                    <p id="OS-JSON" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#OS-JSON', this)">Copy</button>
                 </div>
 
-                <h2>STL Generator</h2>
-                <a href="#" id="STL-anchor">Go to link</a>
+                <h3 class="h5 mt-3">QRSpool URL</h3>
+                <p class="form-text mt-0">
+                    Opens this site with the filament data pre-loaded. Use this for NFC tags on phones without
+                    in-browser NFC support (i.e. anything that isn't Chrome on Android).
+                </p>
                 <div class="copy-box">
-                    <p id="STL-link"></p>
-                    <button class="btn btn-small btn-secondary btn-clipboard" onclick="toClipboard('#STL-link')">Copy</button>
+                    <p id="QRSpool-URL" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#QRSpool-URL', this)">Copy</button>
+                </div>
+
+                <h3 class="h5 mt-3">QR2STL Settings</h3>
+                <p class="form-text mt-0">
+                    Generates a printable 3D QR code. Open <a href="https://qrcode2stl.printer.tools/" target="_blank" rel="noopener noreferrer">QR2STL</a>,
+                    click <b>Import/Export Settings</b> at the top right (inside hamburger menu on mobile), paste this into the <b>Import</b> box, 
+                    and click <b>Apply Settings</b>.
+                </p>
+                <div class="copy-box">
+                    <pre id="STL-JSON" class="mb-0"></pre>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#STL-JSON', this)">Copy</button>
+                </div>
+
+                <h3 class="h5 mt-4">Write to NFC Tag</h3>
+                <div id="nfc-unsupported" class="alert alert-warning" role="alert" hidden></div>
+
+                <p class="form-text mt-0">
+                    Choose which formats to write. Separate NDEF records will be written in the order listed.
+                </p>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="nfc-url" checked onclick="refresh()">
+                    <label class="form-check-label" for="nfc-url">
+                        <b>URL record</b>: a qrspool.com link. Any phone can open it natively by tapping the tag.
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="nfc-os1" checked onclick="refresh()">
+                    <label class="form-check-label" for="nfc-os1">
+                        <b>Text record</b>: the OpenSpool 1.0 string, read by QRSpool's NFC scanner.
+                    </label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="nfc-osjson" onclick="refresh()">
+                    <label class="form-check-label" for="nfc-osjson">
+                        <b>OpenSpool record</b>: <code>application/json</code>, for OpenSpool-compatible readers.
+                    </label>
+                </div>
+
+                <div id="nfc-size" class="form-text mt-0"></div>
+
+                <div class="mt-2">
+                    <button class="btn btn-primary" type="button" id="btn-write-nfc" onclick="writeNFC('filament')">Write NFC Tag</button>
+                    <button class="btn btn-secondary" type="button" id="btn-cancel-nfc" onclick="cancelNFCWrite()" hidden>Cancel</button>
+                </div>
+                <div id="nfc-write-status" class="mt-2"></div>
+
+                <hr>
+
+                <h2 id="slot-tag">Slot Tag</h2>
+                <p class="form-text mt-0">
+                    Identifies an AMS slot, a printer, or a slot on a specific printer. Scan to quickly apply a filament tag to the slot.
+                </p>
+
+                <form onsubmit="return false;">
+                    <div class="mb-3">
+                        <label for="slotPicker" class="form-label">Slot <span class="text-muted">(optional)</span></label>
+                        <select class="form-select" id="slotPicker" onchange="onSlotPicked()">
+                            <option value="">&mdash; none &mdash;</option>
+                        </select>
+                        <div class="form-text" id="slotPickerStatus"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="slotPrinter" class="form-label">Printer Name <span class="text-muted">(optional)</span></label>
+                        <input type="text" class="form-control" id="slotPrinter" list="printerNames"
+                            placeholder="My Printer" autocomplete="off" oninput="refreshSlot()">
+                        <datalist id="printerNames"></datalist>
+                        <div class="form-text">
+                            For multi-printer setups. Must match a name from your server's <code>bambu_config.json</code>. Leave blank to target whichever printer is already active.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="slotIDs" class="form-label">Slot IDs</label>
+                        <input type="text" class="form-control font-monospace" id="slotIDs"
+                            placeholder='{...}' autocomplete="off" spellcheck="false"
+                            oninput="onSlotIDsInput()">
+                        <div class="form-text">
+                            Filled in by the picker above. This data is also available on the Apply Tag page, under &ldquo;Show/Hide All Slot Info&rdquo; for any slot.
+                        </div>
+                        <div class="form-text text-danger" id="slotIDsError"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="slotLabel" class="form-label">Printed Label <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="slotLabel" rows="2" oninput="refreshSlot()"></textarea>
+                        <div class="form-text">Text embossed on the 3D printed tag.</div>
+                        <button class="btn btn-primary btn-sm mt-2" type="button" onclick="fillDefaultSlotLabel()">Auto-generate Label</button>
+                    </div>
+
+                    <button class="btn btn-primary" type="button" onclick="saveActiveSlot()">Save as Active Slot</button>
+                    <button class="btn btn-warning" type="button" onclick="clearSlotBuilder()">Clear Form</button>
+                    <div id="slotSaveMsg" class="form-text mt-2"></div>
+                </form>
+
+                <h3 class="h5 mt-4">Slot String</h3>
+                <p class="form-text mt-0">
+                    Put this in a QR code, or write it to an NFC tag as a plain text record.
+                </p>
+                <div class="copy-box">
+                    <p id="SLOT-string" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#SLOT-string', this)">Copy</button>
+                </div>
+
+                <h3 class="h5 mt-3">QRSpool URL</h3>
+                <p class="form-text mt-0">
+                    Opens this site with the slot pre-selected. Use this for NFC tags on phones without in-browser
+                    NFC support.
+                </p>
+                <div class="copy-box">
+                    <p id="SLOT-URL" class="mb-0 font-monospace"></p>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#SLOT-URL', this)">Copy</button>
+                </div>
+
+                <h3 class="h5 mt-3">QR2STL Settings</h3>
+                <p class="form-text mt-0">
+                    Same import process as the filament tag above.
+                </p>
+                <div class="copy-box">
+                    <pre id="SLOT-STL-JSON" class="mb-0"></pre>
+                    <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#SLOT-STL-JSON', this)">Copy</button>
+                </div>
+
+                <h3 class="h5 mt-4">Write to NFC Tag</h3>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="slot-nfc-url" checked onclick="refreshSlot()">
+                    <label class="form-check-label" for="slot-nfc-url">
+                        <b>URL record</b>: a qrspool.com link. Any phone can open it natively by tapping the tag.
+                    </label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="slot-nfc-text" checked onclick="refreshSlot()">
+                    <label class="form-check-label" for="slot-nfc-text">
+                        <b>Text record</b>: the slot string, read by QRSpool's NFC scanner.
+                    </label>
+                </div>
+
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="slot-nfc-combine" onclick="refreshSlot()">
+                    <label class="form-check-label" for="slot-nfc-combine">
+                        <b>Combined tag</b>: also include the filament data from above, so one tap applies that
+                        filament to this slot.
+                    </label>
+                </div>
+
+                <div id="slot-combined-url-wrap" hidden>
+                    <p class="form-text mt-2 mb-1">
+                        The combined link, if you'd rather write it yourself or put it in a QR code:
+                    </p>
+                    <div class="copy-box">
+                        <p id="SLOT-combined-URL" class="mb-0 font-monospace"></p>
+                        <button class="btn btn-sm btn-secondary btn-clipboard" onclick="toClipboard('#SLOT-combined-URL', this)">Copy</button>
+                    </div>
+                </div>
+
+                <div id="slot-nfc-size" class="form-text mt-2"></div>
+
+                <div class="mt-2">
+                    <button class="btn btn-primary" type="button" id="btn-write-slot-nfc" onclick="writeNFC('slot')">Write NFC Tag</button>
+                    <button class="btn btn-secondary" type="button" id="btn-cancel-slot-nfc" onclick="cancelNFCWrite()" hidden>Cancel</button>
+                </div>
+                <div id="slot-nfc-write-status" class="mt-2"></div>
+
+                <p class="form-text mt-3">
+                    Web NFC only works in Chrome on Android, and only over HTTPS. Writing replaces everything already
+                    on the tag. Tags that are locked or read-only can't be written.
+                </p>
+
+                <hr>
+
+                <h2 class="collapsible-header" data-bs-toggle="collapse" data-bs-target="#advancedSettingsBody"
+                    role="button" aria-expanded="false" aria-controls="advancedSettingsBody">
+                    Advanced Settings
+                </h2>
+
+                <div class="collapse" id="advancedSettingsBody">
+                    <div class="mb-3">
+                        <label for="targetDomain" class="form-label">Target Domain</label>
+                        <input type="text" class="form-control font-monospace" id="targetDomain"
+                            placeholder="https://qrspool.com/" autocomplete="off" spellcheck="false"
+                            oninput="onTargetDomainInput()">
+                        <div class="form-text">
+                            Domain used for the URL records and QRSpool URLs above. Auto-filled with this page's own
+                            domain; change it to point generated tags at a different QRSpool instance.
+                        </div>
+                    </div>
                 </div>
 
             </div>
@@ -94,53 +314,5 @@
         </div>
     </body>
 
-    <script>
-        tag = parseActiveTag();
-        if (tag) {
-            document.querySelector("#tagType").value = tag.type;
-            document.querySelector("#colorHex").value = tag.colorHex;
-            document.querySelector("#brand").value = tag.brand;
-            document.querySelector("#minTemp").value = tag.minTemp;
-            document.querySelector("#maxTemp").value = tag.maxTemp;
-
-            document.querySelector("#QR-string").innerText = tag.toQRString();
-            document.querySelector("#OS-JSON").innerText = tag.toOpenSpoolJSON();
-
-            document.querySelector("#STL-anchor").href = tag.toSTLLink();
-            document.querySelector("#STL-link").innerText = tag.toSTLLink();
-        }
-
-        function clearBuilder() {
-            document.querySelector("#tagType").value = "";
-            document.querySelector("#colorHex").value = "";
-            document.querySelector("#brand").value = "";
-            document.querySelector("#minTemp").value = "";
-            document.querySelector("#maxTemp").value = "";
-        }
-
-        function buildTag() {
-            let type = document.querySelector("#tagType").value;
-            let color = document.querySelector("#colorHex").value;
-            let brand = document.querySelector("#brand").value;
-            let minTemp = document.querySelector("#minTemp").value;
-            let maxTemp = document.querySelector("#maxTemp").value;
-
-            tag = new FilamentOpenSpool(type, color, brand, minTemp, maxTemp);
-            tag.rawData = tag.toQRString();
-            console.log(tag);
-            if (tag != null) {
-                activateTag(tag);
-                window.location.href = "tag.html";
-            }
-            else {
-                console.log("Error creating tag");
-            }
-        }
-
-        function toClipboard(selector) {
-            let text = document.querySelector(selector).innerText;
-            navigator.clipboard.writeText(text);
-        }
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
+    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 </html>

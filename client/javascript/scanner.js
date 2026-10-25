@@ -166,10 +166,13 @@ function updateScanStatus() {
     }
 }
 
-function handleCodeData(data, tag=null) {
+// fromURL skips the scan cooldown, which exists to stop the camera from re-reading
+// the same physical code. URL params are a single deliberate action, and a combined
+// URL legitimately feeds two tags through here back to back.
+function handleCodeData(data, tag=null, fromURL=false) {
     if (tag == null) {
         const now = Date.now();
-        if (now - lastScanTime < getScanDelay()) return;
+        if (!fromURL && now - lastScanTime < getScanDelay()) return;
 
         // Try filament tag
         let filamentTag = FilamentOpenSpool.newEmpty();
@@ -260,31 +263,23 @@ function handleCodeData(data, tag=null) {
 
 function handleURLParams() {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('qrstring')) {
-        console.log("Handling qrstring param");
-        return handleCodeData(urlParams.get('qrstring'));
+    const filamentData = urlParams.get('qrstring') ?? urlParams.get('osjson');
+    const slotData = urlParams.get('slotstring');
+
+    // A URL can carry both halves of a pair. Handle the filament half first: it only
+    // navigates to Apply once a slot is already active, so the slot half below stays
+    // in control of when the pair is considered complete.
+    if (filamentData != null) {
+        console.log("Handling filament param");
+        handleCodeData(filamentData, null, true);
     }
-    if (urlParams.has('osjson')) {
-        console.log("Handling osjson param");
-        return handleCodeData(urlParams.get('osjson'));
-    }
-    if (urlParams.has('slotstring')) {
+
+    if (slotData != null) {
         console.log("Handling slotstring param");
-        let slotTag = SlotTag.tryParse(urlParams.get('slotstring'));
-        if (slotTag != null && slotTag.ids != null) {
-            setActiveSlotIDs(JSON.stringify(slotTag.ids));
-            scanState.slotScanned = true;
-            if (scanState.filamentScanned) {
-                updateScanStatus();
-                keepLooking = false;
-                turnOffTorch();
-                setTimeout(() => { window.location.href = "./apply.html"; }, 250);
-            } else {
-                updateScanStatus();
-            }
-        } else {
-            console.log("Invalid slotstring param");
-        }
+        handleCodeData(slotData, null, true);
+    }
+
+    if (filamentData != null || slotData != null) {
         return;
     }
 

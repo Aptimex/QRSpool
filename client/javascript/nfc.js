@@ -38,6 +38,111 @@ function parseNFCData(data) {
     return null;
 }
 
+// Pull filament/slot data out of a qrspool.com-style URL, if it has any. Lets
+// multi-record tags (URL record first, for native phone handling) be read here too.
+// A combined URL carries both halves of a pair, so this returns a list; filament
+// data comes first so it's stored before the slot half triggers an apply.
+function nfcDataFromURL(url) {
+    try {
+        const params = new URL(url).searchParams;
+        return [
+            params.get('qrstring') ?? params.get('osjson'),
+            params.get('slotstring')
+        ].filter(d => d != null);
+    } catch (e) {
+        return [];
+    }
+}
+
+// Handle a decoded text payload from an NFC tag. Used for plain "text" records
+// (QR-style strings), OpenSpool "application/json" records, and URL records.
+// Returns the kind of data applied ('filament' or 'slot'), or null if nothing was.
+// Kinds already present in `applied` are skipped, so a tag that repeats the same
+// data in several formats doesn't get processed more than once.
+function handleNFCTextData(data, applied=null) {
+    var result = parseNFCData(data);
+    if (result == null) {
+        console.log("Error parsing NFC tag data");
+        nfcError("NFC Error: Unrecognized tag format");
+        return null;
+    }
+
+    if (applied != null && applied.has(result.type)) {
+        console.log("Ignoring duplicate " + result.type + " record");
+        return null;
+    }
+
+    if (result.type === 'filament') {
+        console.log("Activating filament tag");
+        activateTag(result.tag);
+        if (typeof scanState !== 'undefined') { scanState.filamentScanned = true; }
+        const filamentPairComplete = getActiveSlotIDs() != null;
+
+        if (typeof onNFCTagScanned === 'function') {
+            navigator.vibrate(filamentPairComplete ? [80, 50, 80] : 100);
+            if (typeof playScanSound === 'function') playScanSound(filamentPairComplete);
+            onNFCTagScanned('filament', result.tag);
+
+        } else if (filamentPairComplete || getAlwaysJumpToApply()) {
+            navigator.vibrate([80, 50, 80]);
+            if (typeof playScanSound === 'function') playScanSound(true);
+            setTimeout(() => { window.location.href = "apply.html"; }, 300);
+
+        } else {
+            navigator.vibrate(100);
+            if (typeof playScanSound === 'function') playScanSound(false);
+            if (typeof updateScanStatus === 'function') updateScanStatus();
+        }
+
+    } else if (result.type === 'slot') {
+        console.log("Activating slot tag");
+        if (result.tag.ids != null) {
+            setActiveSlotIDs(JSON.stringify(result.tag.ids));
+            if (typeof scanState !== 'undefined') { scanState.slotScanned = true; }
+        }
+        const filamentReady = getActiveTagData() != null;
+        const slotReady = getActiveSlotIDs() != null;
+        const pairComplete = filamentReady && slotReady;
+        navigator.vibrate(pairComplete ? [80, 50, 80] : 100);
+        if (typeof playScanSound === 'function') playScanSound(pairComplete);
+
+        if (result.tag.printer_name != null && result.tag.printer_name !== getActivePrinterName()) {
+            setActivePrinter(result.tag.printer_name).then(switchResult => {
+                if (typeof onNFCTagScanned === 'function') {
+                    onNFCTagScanned('slot', result.tag, switchResult);
+                } else {
+                    const statusEl = document.querySelector("#nfc-status");
+                    if (switchResult.error) {
+                        if (statusEl) {
+                            statusEl.innerText = "Error switching printer: " + switchResult.error;
+                            statusEl.style.color = "red";
+                        }
+                    } else {
+                        setActivePrinterName(switchResult.name);
+                        if (pairComplete) {
+                            setTimeout(() => { window.location.href = "apply.html"; }, 300);
+                        } else {
+                            if (statusEl) {
+                                const nextStep = filamentReady ? "" : " Scan a filament tag.";
+                                statusEl.innerText = "Printer \"" + switchResult.name + "\" selected." + nextStep;
+                                statusEl.style.color = "green";
+                            }
+                        }
+                    }
+                }
+            });
+        } else if (typeof onNFCTagScanned === 'function') {
+            onNFCTagScanned('slot', result.tag);
+        } else if (pairComplete) {
+            setTimeout(() => { window.location.href = "apply.html"; }, 300);
+        } else {
+            if (typeof updateScanStatus === 'function') updateScanStatus();
+        }
+    }
+
+    return result.type;
+}
+
 // Enables fully disabling NFC during cooldowns between tag reads
 var nfcAbortController = null;
 
@@ -70,90 +175,47 @@ function startNFCScan() {
             if (message.records.length === 0) {
                 nfcError("NFC Error: Tag is blank");
             }
+            // A tag can hold the same data in several formats (e.g. a URL record for
+            // native phone handling followed by a plain text record), and can also
+            // carry a filament/slot pair. Track which kinds have been applied so
+            // repeats are ignored but both halves of a pair still get through.
+            let applied = new Set();
+            const apply = (data) => {
+                let kind = handleNFCTextData(data, applied);
+                if (kind) applied.add(kind);
+            };
+
             for (const record of message.records) {
                 switch (record.recordType) {
                 case "text": {
                     console.log("Parsing text record");
                     const textDecoder = new TextDecoder(record.encoding);
-                    const data = textDecoder.decode(record.data);
-                    var result = parseNFCData(data);
-                    if (result == null) {
-                        console.log("Error parsing NFC tag data");
-                        nfcError("NFC Error: Unrecognized tag format");
+                    apply(textDecoder.decode(record.data));
+                    break;
+                }
+
+                case "url":
+                case "absolute-url": {
+                    console.log("Parsing URL record");
+                    const url = new TextDecoder().decode(record.data);
+                    const urlData = nfcDataFromURL(url);
+                    if (urlData.length === 0) {
+                        // Not one of ours; a later record may still be usable
+                        console.log("No filament/slot data in URL record: " + url);
                         break;
                     }
-
-                    if (result.type === 'filament') {
-                        console.log("Activating filament tag");
-                        activateTag(result.tag);
-                        if (typeof scanState !== 'undefined') { scanState.filamentScanned = true; }
-                        const filamentPairComplete = getActiveSlotIDs() != null;
-
-                        if (typeof onNFCTagScanned === 'function') {
-                            navigator.vibrate(filamentPairComplete ? [80, 50, 80] : 100);
-                            if (typeof playScanSound === 'function') playScanSound(filamentPairComplete);
-                            onNFCTagScanned('filament', result.tag);
-
-                        } else if (filamentPairComplete || getAlwaysJumpToApply()) {
-                            navigator.vibrate([80, 50, 80]);
-                            if (typeof playScanSound === 'function') playScanSound(true);
-                            setTimeout(() => { window.location.href = "apply.html"; }, 300);
-
-                        } else {
-                            navigator.vibrate(100);
-                            if (typeof playScanSound === 'function') playScanSound(false);
-                            if (typeof updateScanStatus === 'function') updateScanStatus();
-                        }
-
-                    } else if (result.type === 'slot') {
-                        console.log("Activating slot tag");
-                        if (result.tag.ids != null) {
-                            setActiveSlotIDs(JSON.stringify(result.tag.ids));
-                            if (typeof scanState !== 'undefined') { scanState.slotScanned = true; }
-                        }
-                        const filamentReady = getActiveTagData() != null;
-                        const slotReady = getActiveSlotIDs() != null;
-                        const pairComplete = filamentReady && slotReady;
-                        navigator.vibrate(pairComplete ? [80, 50, 80] : 100);
-                        if (typeof playScanSound === 'function') playScanSound(pairComplete);
-
-                        if (result.tag.printer_name != null && result.tag.printer_name !== getActivePrinterName()) {
-                            setActivePrinter(result.tag.printer_name).then(switchResult => {
-                                if (typeof onNFCTagScanned === 'function') {
-                                    onNFCTagScanned('slot', result.tag, switchResult);
-                                } else {
-                                    const statusEl = document.querySelector("#nfc-status");
-                                    if (switchResult.error) {
-                                        if (statusEl) {
-                                            statusEl.innerText = "Error switching printer: " + switchResult.error;
-                                            statusEl.style.color = "red";
-                                        }
-                                    } else {
-                                        setActivePrinterName(switchResult.name);
-                                        if (pairComplete) {
-                                            setTimeout(() => { window.location.href = "apply.html"; }, 300);
-                                        } else {
-                                            if (statusEl) {
-                                                const nextStep = filamentReady ? "" : " Scan a filament tag.";
-                                                statusEl.innerText = "Printer \"" + switchResult.name + "\" selected." + nextStep;
-                                                statusEl.style.color = "green";
-                                            }
-                                        }
-                                    }
-                                }
-                            });
-                        } else if (typeof onNFCTagScanned === 'function') {
-                            onNFCTagScanned('slot', result.tag);
-                        } else if (pairComplete) {
-                            setTimeout(() => { window.location.href = "apply.html"; }, 300);
-                        } else {
-                            if (typeof updateScanStatus === 'function') updateScanStatus();
-                        }
-                    }
+                    urlData.forEach(apply);
                     break;
                 }
 
                 case "mime": {
+                    // OpenSpool tags store their JSON in an application/json record
+                    if (record.mediaType === "application/json") {
+                        console.log("Parsing OpenSpool JSON record");
+                        apply(new TextDecoder().decode(record.data));
+                        break;
+                    }
+
                     if (record.mediaType !== FilamentOpenTag.mimeType) {
                         console.log("Unsupported MIME type: " + record.mediaType);
                         nfcError("NFC Error: Unsupported MIME type");
@@ -167,6 +229,7 @@ function startNFCScan() {
                         break;
                     }
                     activateTag(fotTag);
+                    applied.add('filament');
                     if (typeof scanState !== 'undefined') { scanState.filamentScanned = true; }
                     const mimePairComplete = getActiveSlotIDs() != null;
 
@@ -193,6 +256,9 @@ function startNFCScan() {
                     console.log("Record type not supported: " + record.recordType);
                     nfcError("NFC Error: Unsupported record type");
                 }
+
+                // Nothing left that a further record could add
+                if (applied.has('filament') && applied.has('slot')) break;
             }
             setTimeout(startNFCScan, getScanDelay());
         };
