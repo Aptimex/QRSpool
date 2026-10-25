@@ -230,10 +230,11 @@ async function getSlots() {
 // Wait for a write to show up in the slot, so the next render shows the applied values rather than the old ones.
 // /setFilament now returns as soon as the printer accepts/rejects the command, before the change is applied. This polls until the printer reports the change.
 // It settles on the first reading that both differs from the starting one AND shows at least one of the values we sent (ignoring blank/empty transition states).
-// Or gives up after 10s.
+// Or gives up after 15s. Returns true if the change was seen, false on timeout.
+const SETTLE_TIMEOUT_MSG = "Timeout waiting for printer status to show filament change";
 async function waitForSlotToSettle(ids, sent = null, options = {}) {
     const pollMs = options.pollMs || 1500;
-    const timeoutMs = options.timeoutMs || 10000;
+    const timeoutMs = options.timeoutMs || 15000;
 
     const key = JSON.stringify(ids);
     const norm = v => String(v ?? "").trim().toLowerCase();
@@ -267,8 +268,9 @@ async function waitForSlotToSettle(ids, sent = null, options = {}) {
         if (current === null) continue;
 
         const changed = JSON.stringify(current) !== initial;
-        if (changed && submitted.some(v => current.includes(v))) return;
+        if (changed && submitted.some(v => current.includes(v))) return true;
     }
+    return false;
 }
 
 async function getServerStatus() {

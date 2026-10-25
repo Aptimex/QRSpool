@@ -364,6 +364,7 @@ class FilamentSlot {
             apply.dataset.ids = JSON.stringify(this.ids);
             apply.onclick = async function() {
                 this.parentElement.lastChild.innerText = "Applying..."
+                document.querySelector("#error").innerText = "";
                 let result = await setFilamentSlotFromTag(this.dataset.ids);
                 if (result.error) {
                     this.parentElement.lastChild.innerText = "Error: " + result.error;
@@ -373,7 +374,9 @@ class FilamentSlot {
                 // Accepted by the printer; wait for it to take effect so the
                 // refresh below shows the new values instead of the old ones.
                 this.parentElement.lastChild.innerText = "Applied, waiting for the printer...";
-                await waitForSlotToSettle(JSON.parse(this.dataset.ids), result.sent);
+                if (!await waitForSlotToSettle(JSON.parse(this.dataset.ids), result.sent)) {
+                    document.querySelector("#error").innerText = SETTLE_TIMEOUT_MSG;
+                }
                 showFilamentSlots();
                 if (typeof postApplyCleanup === 'function') postApplyCleanup();
             }
@@ -462,6 +465,7 @@ class FilamentSlot {
         apply.dataset.ids = JSON.stringify(this.ids);
         apply.onclick = async function() {
             this.innerText = "Applying..."
+            document.querySelector("#error").innerText = "";
             let result = await setFilamentSlotFromTag(this.dataset.ids);
             if (result.error) {
                 this.innerText = "Error, see top of screen";
@@ -471,7 +475,9 @@ class FilamentSlot {
             // Accepted by the printer; wait for it to take effect so the
             // refresh below shows the new values instead of the old ones.
             this.innerText = "Applied, waiting for the printer...";
-            await waitForSlotToSettle(JSON.parse(this.dataset.ids), result.sent);
+            if (!await waitForSlotToSettle(JSON.parse(this.dataset.ids), result.sent)) {
+                document.querySelector("#error").innerText = SETTLE_TIMEOUT_MSG;
+            }
             showFilamentSlots();
             if (typeof postApplyCleanup === 'function') postApplyCleanup();
         }
