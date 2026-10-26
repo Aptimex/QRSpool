@@ -4,8 +4,11 @@ import time
 import bambulabs_api as bl
 import json
 
+# bambulabs_api filament data is outdated
+from bambu_mqtt_generator import get_tray_type
+
 #local files
-from configs.config_loader import PRINTERS
+from configs.config_loader import PRINTERS, uses_custom_backend
 
 def getKnownFilaments(path = "./configs/bambu-ams-codes.json"):
     with open(path, "r") as f:
@@ -25,12 +28,16 @@ getKnownFilaments()
 getTypeAbbreviations()
 getModifierAbbreviations()
 
+def trayTypeForCode(code, fallback="UNK"):
+    """The tray_type to announce for a filament code (to display on printer's AMS screen)"""
+    return get_tray_type(code) or fallback
+
 def _printer_name(idx, cfg):
     return cfg.get("name") or cfg.get("ip", f"Printer {idx+1}")
 
 PRINTERS_MAP = {}
 for _i, _cfg in enumerate(PRINTERS):
-    if _cfg.get("new_dev_mode"):
+    if uses_custom_backend(_cfg):
         continue
     _name = _printer_name(_i, _cfg)
     if _name not in PRINTERS_MAP:  # first entry wins on duplicate names
@@ -61,6 +68,14 @@ def ensureConnected():
         if not CURRENT_PRINTER.mqtt_client_connected():
             return makeError("Unable to connect to printer")
     return None
+
+def retryable(msg: str) -> str:
+    """Error tag specifically for automated, non-interactive clients.
+    Indicates there is likely benefit from trying the request again in a few seconds.
+    """
+    marker = "[retry]"
+    return f"{msg} {marker}"
+
 
 def makeError(msg: str):
     return {
@@ -187,7 +202,9 @@ def getSlots():
     return resp
 
 def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0, colorName = ""):
-    ensureConnected()
+    error = ensureConnected()
+    if error:
+        return False, error["error"]
 
     minTemp = 0 if (minTemp == "") else minTemp
     maxTemp = 0 if (maxTemp == "") else maxTemp
@@ -218,10 +235,12 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0,
     if not code:
         return False, "Unable to match brand and type with known Bambu codes"
 
-    newFilament = bl.AMSFilamentSettings(code, minTemp, maxTemp, fType)
-    hub = CURRENT_PRINTER.ams_hub()
+    trayType = trayTypeForCode(code, fType)
+
+    newFilament = bl.AMSFilamentSettings(code, minTemp, maxTemp, trayType)
     '''
     # Validating the IDs more often then not just results in false negatives due to the printer sometimes not returning all the info it should
+    hub = CURRENT_PRINTER.ams_hub()
     try:
         _ = hub[amsID]
     except KeyError as e:
@@ -230,7 +249,7 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp = 0, maxTemp = 0,
     try:
         _ = hub[amsID][trayID]
     except KeyError as e:
-        return False, f"No filament is loaded in that slot, or printer does not advertise AMS #{amsID} with Slot #{trayID+1})"
+        return False, retryable(f"No spool is loaded in AMS #{amsID} Slot #{trayID+1}, or the printer does not advertise that slot")
     '''
 
     result = CURRENT_PRINTER.set_filament_printer(colorHex, newFilament, amsID, trayID)

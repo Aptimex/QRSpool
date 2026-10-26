@@ -1,236 +1,373 @@
 #!/usr/bin/env python3
+"""
+Printer communication backend built on the bambu-mqtt-comms and
+bambu-mqtt-generator libraries.
 
-import json
-import ssl
-import time
+This module owns no protocol knowledge of its own. Connections, the certificate
+bootstrap and request/response correlation come from bambu-mqtt-comms; payload
+construction, signing and push_status interpretation come from
+bambu-mqtt-generator. What is left here is the translation between QRSpool's
+API (brand/type names, {"error": ...} dicts, (ok, message) tuples) and those
+libraries.
+
+The public functions mirror bambu.py so app.py can use either backend
+interchangeably.
+"""
+
 import threading
-import paho.mqtt.client as mqtt
+from typing import Optional
 
+from bambu_mqtt_comms import BambuMQTTClient, PrinterConfig
+from bambu_mqtt_comms import BambuMQTTError
+from bambu_mqtt_generator import (
+    ExternalSpool,
+    MQTTSigner,
+    check_command_result,
+    extract_leaf_cert,
+    get_payload_builder,
+    is_signature_required,
+    load_config,
+    load_pem,
+    find_slot,
+    parse_response,
+)
+
+from configs.config_loader import KEY_PEM_FILE, CERT_CHAIN_PEM_FILE, CRL_PEM_FILE
 from bambu import (
     getKnownFilaments,
     getTypeAbbreviations,
     getModifierAbbreviations,
     filamentToCode,
-    EXTERNAL_SPOOL_AMSID,
-    EXTERNAL_SPOOL_SLOTID,
+    retryable,
 )
 
+# Ids the printer uses for external spools rather than an AMS bay.
+EXTERNAL_SPOOL_AMS_IDS = (ExternalSpool.MAIN, ExternalSpool.DEPUTY)
+
+# Fail fast at import if the lookup tables are missing or malformed.
 getKnownFilaments()
 getTypeAbbreviations()
 getModifierAbbreviations()
 
-MQTT_PORT = 8883
-MQTT_USER = "bblp"
+# Slot values the client renders, and which of them are colors. Unchanged from
+# the bambu.py backend so both produce the same shape.
+DISPLAY_KEYS = ["Type", "Color", "Brand", "Min Temp", "Max Temp", "k", "Bed Temp"]
+COLOR_HEX_KEYS = ["Color"]
 
-_PUSHALL_CMD = {
-    "pushing": {
-        "sequence_id": "1",
-        "command": "pushall",
-        "version": 1,
-        "push_target": 1,
-    }
-}
+CONNECT_TIMEOUT = 20.0
+STATUS_TIMEOUT = 20.0
+# How stale the pushed status may be before a fresh pushall is worth asking for.
+# Printers push on their own every 1-2s, so anything within a few seconds is
+# current. Asking every time is what to avoid: a pushall makes the printer send
+# a full report, and enough of them in a row makes it stop sending them at all,
+# after which every read fails until the connection is rebuilt.
+STATUS_MAX_AGE = 5.0
+COMMAND_TIMEOUT = 15.0
+
+_CONFIG = load_config()
 
 
 def makeError(msg: str):
     return {"error": msg}
 
 
-def _make_tls_context() -> ssl.SSLContext:
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    return ctx
+# ── Signing credentials ────────────────────────────────────────────────────────
+
+def _build_signer() -> Optional[MQTTSigner]:
+    """Build the shared signer from the configured PEM paths, if any.
+
+    Returning None is the normal outcome: signing credentials are non-trivial
+    to obtain and most setups never configure them. Printers in LAN + Developer
+    mode, and anything on firmware predating command signing, need none of
+    this, and nothing downstream treats a missing signer as an error — a
+    printer that turns out to require signing explains itself when a write is
+    attempted.
+
+    When the paths are given it is all-or-nothing: the chain and CRL are what
+    the app_cert_install bootstrap registers, and without that registration the
+    printer rejects signed commands too. The leaf certificate is the first
+    block of the chain, so it isn't configured separately.
+    """
+    configured = [
+        ("key_pem_file", KEY_PEM_FILE),
+        ("cert_chain_pem_file", CERT_CHAIN_PEM_FILE),
+        ("crl_pem_file", CRL_PEM_FILE),
+    ]
+    if not any(path for _, path in configured):
+        return None
+
+    missing = [name for name, path in configured if not path]
+    if missing:
+        raise RuntimeError(
+            f"Signing requires all three cert file fields; missing: {missing}"
+        )
+
+    # Deliberately fatal: these were configured on purpose, so a path that
+    # cannot be read is a mistake worth reporting at startup rather than a
+    # surprise on the first write. The message names the file so it is fixable.
+    try:
+        chain_pem = load_pem(CERT_CHAIN_PEM_FILE)
+        key_pem = load_pem(KEY_PEM_FILE)
+        crl_pem = load_pem(CRL_PEM_FILE)
+    except OSError as e:
+        raise RuntimeError(
+            f"Could not read a configured signing file: {e}. Paths are relative "
+            "to bambu-server/. Remove the three *_pem_file fields to run "
+            "without signing."
+        ) from e
+
+    return MQTTSigner(
+        cert_pem=extract_leaf_cert(chain_pem),
+        key_pem=key_pem,
+        cert_chain_pem=chain_pem,
+        crl_pem=crl_pem,
+    )
 
 
-class _PrinterState:
-    def __init__(self, cfg: dict):
-        self.ip = cfg["ip"]
-        self.serial = cfg["serial"]
-        self.access_code = cfg["access_code"]
-        self.topic_req = f"device/{self.serial}/request"
-        self.topic_report = f"device/{self.serial}/report"
-        self.client: mqtt.Client = None
-        self.connected = False
-        self.print_data: dict = None
-        self.data_lock = threading.Lock()
-        self.data_ready = threading.Event()
+_SIGNER = _build_signer()
 
 
-_states: dict = {}   # serial -> _PrinterState
-_current: _PrinterState = None
-CURRENT_PRINTER_NAME: str = None
+# ── Printer sessions ───────────────────────────────────────────────────────────
+
+class _PrinterSession:
+    """One printer: its connection, payload builder, and cached status."""
+
+    def __init__(self, cfg: dict, name: str):
+        self.name = name
+        self.printer = PrinterConfig(
+            ip=cfg["ip"],
+            serial=cfg["serial"],
+            access_code=cfg["access_code"],
+            response_timeout=COMMAND_TIMEOUT,
+        )
+        self.model_id = cfg.get("model_id")
+        self.firmware_version = cfg.get("firmware_version")
+
+        # Whether setFilament may write over a slot the printer identified from
+        # an RFID tag. Off by default; see _auto_detected.
+        self.overwrite_auto_filament = bool(cfg.get("overwrite_auto_filament", False))
+
+        self.client: Optional[BambuMQTTClient] = None
+        self.builder = None
+        self._status: Optional[dict] = None
+        self._lock = threading.Lock()
+
+    # -- connection ------------------------------------------------------------
+
+    @property
+    def connected(self) -> bool:
+        return self.client is not None and self.client.is_connected
+
+    def connect(self) -> None:
+        """Connect, detect the printer's signing policy, and prepare the builder."""
+        if self.connected:
+            return
+
+        self.disconnect()
+
+        # The client works out for itself whether this printer needs signed
+        # commands and registers the certificate only if it does, so the signer
+        # is handed over unconditionally — including when it is None, which is
+        # the normal case for a printer in LAN + Developer mode.
+        client = BambuMQTTClient(self.printer, signer=_SIGNER)
+        client.connect(timeout=CONNECT_TIMEOUT)
+        self.client = client
+
+        try:
+            self._finish_connect()
+        except Exception:
+            # Anything below needs the connection, so a failure there leaves a
+            # session that looks connected but has no builder. Tear it down so
+            # the next call retries from scratch instead of failing oddly.
+            self.disconnect()
+            raise
+
+    def _finish_connect(self) -> None:
+        """Prepare the payload builder, and log what signing turned out to need.
+
+        Certificate registration is not done here any more. BambuMQTTClient.connect
+        detects whether this printer rejects unsigned commands — one round trip,
+        no credentials needed — and only registers a certificate for the printers
+        that do. A printer in LAN + Developer mode, or on firmware predating
+        command signing, costs nothing beyond that probe.
+        """
+        signing = self.client.signing
+        if signing.required:
+            print(f"[mqtt] {self.name}: printer requires signed commands "
+                  f"(detected by {signing.detected_by or 'probe'})")
+        message = self.client.signing_status_message()
+        if message:
+            print(f"[mqtt] {self.name}: {message}")
+
+        self._resolve_model()
+        self.builder = get_payload_builder(self.model_id, self.firmware_version)
+
+    def disconnect(self) -> None:
+        if self.client is not None:
+            try:
+                self.client.disconnect()
+            except Exception:
+                pass
+        self.client = None
+
+    def ensure_connected(self) -> Optional[dict]:
+        """Connect if needed. Returns an error dict on failure, else None."""
+        if self.connected:
+            return None
+        try:
+            self.connect()
+        except BambuMQTTError as e:
+            return makeError(f"Unable to connect to printer: {e}")
+        except Exception as e:
+            return makeError(f"Unable to connect to printer: {type(e).__name__}: {e}")
+        return None
+
+    def _resolve_model(self) -> None:
+        """Fill in model id / firmware version if the config didn't supply them.
+
+        Configuring them is preferred, but existing configs predate those
+        fields, so fall back to asking the printer. Different models answer
+        get_version differently: some report the model id in `project_name`,
+        others the marketing name in `product_name`. Both forms resolve, since
+        the generator accepts either.
+        """
+        if self.model_id and self.firmware_version:
+            return
+
+        response = self.client.send_and_wait(
+            {"info": {"sequence_id": self.client.random_sequence_id(),
+                      "command": "get_version"}},
+            timeout=COMMAND_TIMEOUT,
+        )
+        modules = response.get("info", {}).get("module", [])
+        ota = next((m for m in modules if m.get("name") == "ota"), {})
+
+        if not self.firmware_version:
+            self.firmware_version = ota.get("sw_ver")
+
+        if not self.model_id:
+            for candidate in (ota.get("project_name"), ota.get("product_name")):
+                if candidate and _CONFIG.resolve_model_id(candidate.strip()):
+                    self.model_id = candidate.strip()
+                    break
+
+        if not self.model_id or not self.firmware_version:
+            raise RuntimeError(
+                f"Could not determine model_id/firmware_version for '{self.name}' "
+                f"({self.model_id!r}/{self.firmware_version!r}). Set them in "
+                "bambu_config.json."
+            )
+
+        print(f"[mqtt] {self.name}: detected model {self.model_id} "
+              f"firmware {self.firmware_version}")
+
+    # -- status ----------------------------------------------------------------
+
+    def refresh_status(self, force: bool = False) -> Optional[dict]:
+        """Ask the printer for a full report and cache it.
+
+        Pass force=true if it's critical to get a full fresh report, 
+        rather than cached data based on monitored incremental updates.
+        """
+        with self._lock:
+            self._status = self.client.request_status(
+                timeout=STATUS_TIMEOUT, force=force
+            )
+            return self._status
+
+    def current_status(self, max_age: float = STATUS_MAX_AGE) -> Optional[dict]:
+        """Status from the printer's own push stream, or a pushall if stale."""
+        pushed = self.client.get_status(max_age=max_age)
+        if pushed is not None:
+            with self._lock:
+                self._status = pushed
+            return pushed
+        return self.refresh_status()
+
+    @property
+    def status(self) -> Optional[dict]:
+        with self._lock:
+            return self._status
+
+    def parse_slots(self, status: dict) -> list:
+        parsed = parse_response(
+            {"print": status}, self.model_id, self.firmware_version, _CONFIG
+        )
+        if not parsed.get("success"):
+            raise RuntimeError("could not interpret the printer's status response")
+        return parsed["slots"]
+
+
+_sessions: dict = {}          # serial -> _PrinterSession
+_current: Optional[_PrinterSession] = None
+CURRENT_PRINTER_NAME: Optional[str] = None
 
 
 def setCurrentPrinter(cfg: dict, name: str):
     global _current, CURRENT_PRINTER_NAME
     serial = cfg["serial"]
-    if serial not in _states:
-        _states[serial] = _PrinterState(cfg)
-    _current = _states[serial]
+    if serial not in _sessions:
+        _sessions[serial] = _PrinterSession(cfg, name)
+    _current = _sessions[serial]
     CURRENT_PRINTER_NAME = name
 
 
-# ── MQTT callbacks ─────────────────────────────────────────────────────────────
-
-def _on_connect(client, userdata, connect_flags, reason_code, properties=None):
-    state: _PrinterState = userdata
-    if not reason_code.is_failure:
-        state.connected = True
-        client.subscribe(state.topic_report)
-        client.publish(state.topic_req, json.dumps(_PUSHALL_CMD))
-    else:
-        print(f"[mqtt] Connection failed: {reason_code}")
-
-
-def _on_disconnect(client, userdata, disconnect_flags, reason_code, properties=None):
-    state: _PrinterState = userdata
-    state.connected = False
-    if reason_code.is_failure:
-        print(f"[mqtt] Unexpected disconnect: {reason_code}")
-
-
-def _on_message(client, userdata, msg):
-    state: _PrinterState = userdata
-    try:
-        data = json.loads(msg.payload.decode())
-    except json.JSONDecodeError:
-        return
-
-    if "print" in data and data["print"].get("command") == "push_status":
-        with state.data_lock:
-            state.print_data = data["print"]
-        state.data_ready.set()
-
-
-# ── Connection management ──────────────────────────────────────────────────────
+# ── Public API (mirrors bambu.py) ──────────────────────────────────────────────
 
 def connect():
     if _current is None:
         return
-    if _current.connected:
-        return
-
-    if _current.client is not None:
-        try:
-            _current.client.loop_stop()
-            _current.client.disconnect()
-        except Exception:
-            pass
-
-    _current.connected = False
-    _current.data_ready.clear()
-
-    c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, userdata=_current)
-    c.username_pw_set(MQTT_USER, _current.access_code)
-    c.tls_set_context(_make_tls_context())
-    c.on_connect = _on_connect
-    c.on_message = _on_message
-    c.on_disconnect = _on_disconnect
-
-    c.connect(_current.ip, MQTT_PORT, keepalive=60)
-    c.loop_start()
-    _current.client = c
+    _current.ensure_connected()
 
 
 def disconnect():
     if _current is None:
         return
-    if _current.client is not None:
-        try:
-            _current.client.loop_stop()
-            _current.client.disconnect()
-        except Exception:
-            pass
-    _current.connected = False
+    _current.disconnect()
 
 
 def ensureConnected():
     if _current is None:
         return makeError("No printer configured")
-    if not _current.connected:
-        connect()
-        time.sleep(3)
-        if not _current.connected:
-            return makeError("Unable to connect to printer")
-    return None
+    return _current.ensure_connected()
 
 
-# ── Slot helpers ───────────────────────────────────────────────────────────────
-
-def _is_empty_tray(tray: dict) -> bool:
-    return not tray.get("tray_type")
-
-
-def _empty_tray_dict() -> dict:
-    return {
-        "tray_info_idx": "",
-        "tray_type": "EMPTY",
-        "tray_color": "xxxxxxxx",
-        "tray_sub_brands": "",
-        "nozzle_temp_min": "0",
-        "nozzle_temp_max": "0",
-        "bed_temp": "0",
-        "k": 0.0,
-    }
-
-
-def _tray_to_slot(amsID: int, slotID: int, tray: dict) -> dict:
-    slot = dict(tray)
-    slot["ids"] = {"amsID": amsID, "slotID": slotID}
-
-    brand = "Generic"
-    current_code = tray.get("tray_info_idx", "")
-    for name, code in getKnownFilaments().items():
-        if code == current_code:
-            brand = name.split()[0]
-            break
-
-    t = tray.get("tray_type", "EMPTY")
-    sub = tray.get("tray_sub_brands", "")
-    if sub:
-        t += f" ({sub})"
-
-    slot["Type"]     = t
-    slot["Color"]    = tray.get("tray_color", "xxxxxx")[:6]
-    slot["Brand"]    = brand
-    slot["Min Temp"] = int(tray.get("nozzle_temp_min", 0) or 0)
-    slot["Max Temp"] = int(tray.get("nozzle_temp_max", 0) or 0)
-    slot["Bed Temp"] = int(tray.get("bed_temp", 0) or 0)
-    slot["k"]        = tray.get("k", 0.0)
-
-    if amsID == EXTERNAL_SPOOL_AMSID:
-        slot["displayID"] = "External Spool (no AMS)"
-    else:
-        slot["displayID"] = f"AMS #{amsID} | Slot #{slotID + 1}"
-
-    return slot
-
-
-# ── Public API (mirrors bambu.py) ──────────────────────────────────────────────
-
-def getPrinterStatus():
+def _gcode_state() -> dict:
+    """Shared body of getPrinterStatus/getPrinterState."""
     error = ensureConnected()
     if error:
         return error
 
-    with _current.data_lock:
-        pd = _current.print_data
+    try:
+        status = _current.current_status()
+    except BambuMQTTError:
+        status = None
 
-    state = pd.get("gcode_state", "UNKNOWN") if pd else "UNKNOWN"
-    return {"status": state}
+    return {"state": (status or {}).get("gcode_state", "UNKNOWN")}
+
+
+def signingWarning() -> Optional[str]:
+    """Report discrepencies between signing requirements and capabilities."""
+    if _current is None or _current.client is None:
+        return None
+    return _current.client.signing_status_message()
+
+
+def getPrinterStatus():
+    result = _gcode_state()
+    if "error" in result:
+        return result
+    status = {"status": result["state"]}
+
+    # Proactively warn if the printer requires signing but it's not configured
+    warning = signingWarning()
+    if warning:
+        status["warning"] = warning
+    return status
 
 
 def getPrinterState():
-    error = ensureConnected()
-    if error:
-        return error
-
-    with _current.data_lock:
-        pd = _current.print_data
-
-    state = pd.get("gcode_state", "UNKNOWN") if pd else "UNKNOWN"
-    return {"state": state}
+    return _gcode_state()
 
 
 def getSlots():
@@ -238,70 +375,98 @@ def getSlots():
     if error:
         return error
 
-    _current.data_ready.wait(timeout=10)
+    try:
+        status = _current.current_status()
+    except BambuMQTTError as e:
+        return makeError(f"No printer data received: {e}")
 
-    with _current.data_lock:
-        pd = dict(_current.print_data) if _current.print_data else None
-
-    if pd is None:
+    if not status:
         return makeError("No printer data received yet")
 
-    ams_list = pd.get("ams", {}).get("ams", [])
-    slots = []
+    try:
+        slots = _current.parse_slots(status)
+    except Exception as e:
+        return makeError(str(e))
 
-    for ams in ams_list:
-        amsID = int(ams["id"])
-        row = [_tray_to_slot(amsID, i, _empty_tray_dict()) for i in range(4)]
-
-        for tray in ams.get("tray", []):
-            slotID = int(tray["id"])
-            if 0 <= slotID < 4 and not _is_empty_tray(tray):
-                row[slotID] = _tray_to_slot(amsID, slotID, tray)
-
-        slots += row
-
-    if "vir_slot" in pd:
-        vir = pd["vir_slot"]
-        ext = vir[0] if vir else _empty_tray_dict()
-        slots.append(_tray_to_slot(EXTERNAL_SPOOL_AMSID, 255, ext))
-    elif "vt_tray" in pd:
-        ext = pd["vt_tray"]
-        if _is_empty_tray(ext):
-            ext = _empty_tray_dict()
-        slots.append(_tray_to_slot(EXTERNAL_SPOOL_AMSID, EXTERNAL_SPOOL_SLOTID, ext))
-
-    return {
+    result = {
         "slots": slots,
-        "displayKeys": ["Type", "Color", "Brand", "Min Temp", "Max Temp", "k", "Bed Temp"],
-        "colorHexKeys": ["Color"],
+        "displayKeys": DISPLAY_KEYS,
+        "colorHexKeys": COLOR_HEX_KEYS,
     }
+    warning = signingWarning()
+    if warning:
+        result["warning"] = warning
+    return result
+
+
+def _validate_int(value, label, blank_is_zero=False):
+    """Coerce a client-supplied value to int, returning (value, error).
+
+    Temperatures arrive blank when the client has nothing to send and mean
+    "use the filament's default". An id must never be defaulted that way —
+    blank would silently become AMS 0.
+    """
+    if blank_is_zero and value in ("", None):
+        return 0, None
+    try:
+        return int(value), None
+    except (TypeError, ValueError) as e:
+        return None, f"Invalid {label} '{value}': {e}"
+
+
+def _resolve_slot(status: dict, amsID: int, trayID: int):
+    """Find the target slot and confirm it holds a spool. Returns (slot, error).
+
+    "Holds a spool" is the generator's `present` flag, which comes from the
+    printer's tray_exist_bits — the same signal Bambu Studio uses. It is not
+    the same as the printer knowing what the filament is: an unidentified spool
+    (a third-party roll with no RFID tag) reports no type at all, and setting
+    its filament is exactly what this app is for. Only a slot with nothing in
+    it is refused.
+    """
+    try:
+        slots = _current.parse_slots(status)
+    except Exception as e:
+        return None, str(e)
+
+    slotID = 0 if amsID in EXTERNAL_SPOOL_AMS_IDS else trayID
+    slot = find_slot(slots, amsID, slotID)
+    if slot is None:
+        if amsID in EXTERNAL_SPOOL_AMS_IDS:
+            return None, "Printer does not have an external spool slot"
+        return None, f"Printer does not recognize AMS #{amsID} Slot #{trayID + 1}"
+
+    if not slot.get("present", True):
+        return None, retryable(f"No spool is loaded in AMS #{amsID} Slot #{trayID + 1}")
+    return slot, None
+
+
+def _auto_detected(slot: dict) -> bool:
+    """Whether the AMS identified this slot's spool from its RFID tag.
+
+    The generator makes the call (`auto_detected`, from tag_uid the way Bambu
+    Studio does it, and never for an external holder, which has no tag reader).
+    """
+    return bool(slot.get("auto_detected"))
 
 
 def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, colorName=""):
-    ensureConnected()
+    error = ensureConnected()
+    if error:
+        return False, error["error"]
 
-    minTemp = 0 if minTemp == "" else minTemp
-    maxTemp = 0 if maxTemp == "" else maxTemp
-
-    try:
-        amsID = int(amsID)
-    except Exception as e:
-        return False, f"Invalid AMS ID '{amsID}': {e}"
-
-    try:
-        trayID = int(trayID)
-    except Exception as e:
-        return False, f"Invalid Tray ID '{trayID}': {e}"
-
-    try:
-        minTemp = int(minTemp)
-    except Exception as e:
-        return False, f"Invalid min temperature '{minTemp}': {e}"
-
-    try:
-        maxTemp = int(maxTemp)
-    except Exception as e:
-        return False, f"Invalid max temperature '{maxTemp}': {e}"
+    parsed = {}
+    for name, value, label, blank_ok in (
+        ("amsID", amsID, "AMS ID", False),
+        ("trayID", trayID, "Tray ID", False),
+        ("minTemp", minTemp, "min temperature", True),
+        ("maxTemp", maxTemp, "max temperature", True),
+    ):
+        parsed[name], err = _validate_int(value, label, blank_is_zero=blank_ok)
+        if err:
+            return False, err
+    amsID, trayID = parsed["amsID"], parsed["trayID"]
+    minTemp, maxTemp = parsed["minTemp"], parsed["maxTemp"]
 
     code, codeError = filamentToCode(brand, fType, colorName)
     if codeError:
@@ -309,40 +474,95 @@ def setFilament(amsID, trayID, colorHex, brand, fType, minTemp=0, maxTemp=0, col
     if not code:
         return False, "Unable to match brand and type with known Bambu codes"
 
-    with _current.data_lock:
-        pd = _current.print_data
-
-    if pd is None:
+    try:
+        status = _current.current_status()
+    except BambuMQTTError as e:
+        return False, f"No printer data available: {e}"
+    if not status:
         return False, "No printer data available"
 
-    if amsID == EXTERNAL_SPOOL_AMSID:
-        if "vir_slot" not in pd and "vt_tray" not in pd:
-            return False, "Printer does not have an external spool slot"
-    else:
-        ams_list = pd.get("ams", {}).get("ams", [])
-        ams_by_id = {int(a["id"]): a for a in ams_list}
-        if amsID not in ams_by_id:
-            return False, f"Printer does not recognize AMS #{amsID}"
+    slot, slot_error = _resolve_slot(status, amsID, trayID)
+    if slot_error:
+        return False, slot_error
 
-        tray_by_id = {int(t["id"]): t for t in ams_by_id[amsID].get("tray", [])}
-        if trayID not in tray_by_id or _is_empty_tray(tray_by_id[trayID]):
-            return False, f"No filament is loaded in AMS #{amsID} Slot #{trayID + 1}"
+    where = slot.get("displayID") or f"AMS #{amsID} Slot #{trayID + 1}"
 
-    color_with_alpha = f"{colorHex.upper()}FF"
+    # Block overwriting AMS-detected filaments unless explicitly configured to allow it.
+    if not _current.overwrite_auto_filament and _auto_detected(slot):
+        return False, f"{where} filament was auto-detected by the AMS; overwriting is blocked."
 
-    payload = {
-        "print": {
-            "sequence_id": "1",
-            "command": "ams_filament_setting",
-            "ams_id": amsID,
-            "tray_id": trayID,
-            "tray_info_idx": code,
-            "tray_color": color_with_alpha,
-            "nozzle_temp_min": minTemp,
-            "nozzle_temp_max": maxTemp,
-            "tray_type": fType,
-        }
-    }
+    # Block writing to slots that the AMS is actively trying to read
+    if slot.get("read_pending"):
+        return False, retryable(f"{where} is currently being read by the AMS, try again later.")
 
-    _current.client.publish(_current.topic_req, json.dumps(payload))
+    try:
+        payload = _build_filament_payload(
+            code, colorHex, amsID, trayID, fType, minTemp, maxTemp
+        )
+    except ValueError as e:
+        return False, str(e)
+
+    try:
+        # send_command signs when this printer needs it, and if the printer
+        # rejects an unsigned command it registers the certificate and retries
+        # once by itself. Nothing here has to know which case applies.
+        response = _current.client.send_command(payload, timeout=COMMAND_TIMEOUT)
+    except BambuMQTTError:
+        return False, f"No response from printer within {COMMAND_TIMEOUT:.0f}s; the change may or may not have been applied"
+
+    result = check_command_result(response)
+    if not result["accepted"]:
+        # A signature rejection that survived the retry means the user has
+        # something to fix, so say what rather than quoting the error code.
+        if is_signature_required(result["err_code"]):
+            return False, (_current.client.signing_status_message()
+                           or "Printer requires signed commands.")
+        detail = result["description"] or f"err_code={result['err_code']}"
+        return False, f"Printer rejected command: {detail}"
+
+    # Accepted, not yet applied. Printers take 5-10s to reflect a filament change, which is handled by the frontend polling /slots
     return True, ""
+
+
+def _build_filament_payload(code, colorHex, amsID, trayID, fType, minTemp, maxTemp):
+    """Build ams_filament_setting, filling gaps from the filament preset.
+
+    build_filament_setting() derives temperatures and type from the configured
+    preset and works out the id triple, but it only accepts filament ids it has
+    a preset for. QRSpool's code list is broader than the extracted presets
+    (discontinued filaments such as GFA03 have no profile in current Bambu
+    Studio), so those fall back to build_payload with every field supplied.
+    """
+    builder = _current.builder
+    color = colorHex if colorHex.startswith("#") else f"#{colorHex}"
+
+    if builder.get_filament_defaults(code):
+        overrides = {}
+        # 0 means "unset" from the client; let the preset supply the value.
+        if minTemp:
+            overrides["nozzle_temp_min"] = minTemp
+        if maxTemp:
+            overrides["nozzle_temp_max"] = maxTemp
+        # tray_type is deliberately not overridden — build_filament_setting
+        # takes it from the preset.
+        return builder.build_filament_setting(
+            tray_info_idx=code, tray_color=color, ams_id=amsID, tray_id=trayID,
+            **overrides,
+        )
+
+    # Unknown filament id: supply everything explicitly. No preset means no
+    # type to look up either, so fType is all there is to go on.
+    is_external = amsID in EXTERNAL_SPOOL_AMS_IDS
+    return builder.build_payload(
+        "ams_filament_settings",
+        sequence_id=None,
+        ams_id=amsID,
+        tray_id=254 if is_external else trayID,
+        slot_id=0 if is_external else trayID,
+        tray_info_idx=code,
+        setting_id="",
+        tray_color=f"{colorHex.lstrip('#').upper()}FF",
+        nozzle_temp_min=minTemp,
+        nozzle_temp_max=maxTemp,
+        tray_type=builder.get_tray_type(code) or fType,
+    )

@@ -5,5 +5,6 @@
 *.cer
 *.key
 *config.py
+*config.json
 __pycache__
 .venv

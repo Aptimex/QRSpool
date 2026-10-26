@@ -363,12 +363,19 @@ class FilamentSlot {
             apply.classList.add("btn", "btn-primary");
             apply.dataset.ids = JSON.stringify(this.ids);
             apply.onclick = async function() {
-                this.parentElement.lastChild.innerText = "Applying, please wait 5-10 seconds..."
+                this.parentElement.lastChild.innerText = "Applying..."
+                document.querySelector("#error").innerText = "";
                 let result = await setFilamentSlotFromTag(this.dataset.ids);
                 if (result.error) {
                     this.parentElement.lastChild.innerText = "Error: " + result.error;
                     document.querySelector("#error").innerText = "Error: " + result.error;
                     return;
+                }
+                // Accepted by the printer; wait for it to take effect so the
+                // refresh below shows the new values instead of the old ones.
+                this.parentElement.lastChild.innerText = "Applied, waiting for the printer...";
+                if (!await waitForSlotToSettle(JSON.parse(this.dataset.ids), result.sent)) {
+                    document.querySelector("#error").innerText = SETTLE_TIMEOUT_MSG;
                 }
                 showFilamentSlots();
                 if (typeof postApplyCleanup === 'function') postApplyCleanup();
@@ -457,12 +464,19 @@ class FilamentSlot {
         apply.classList.add("btn", "btn-primary", "m-1");
         apply.dataset.ids = JSON.stringify(this.ids);
         apply.onclick = async function() {
-            this.innerText = "Applying, please wait 5-10 seconds..."
+            this.innerText = "Applying..."
+            document.querySelector("#error").innerText = "";
             let result = await setFilamentSlotFromTag(this.dataset.ids);
             if (result.error) {
                 this.innerText = "Error, see top of screen";
                 document.querySelector("#error").innerText = "Error: " + result.error;
                 return;
+            }
+            // Accepted by the printer; wait for it to take effect so the
+            // refresh below shows the new values instead of the old ones.
+            this.innerText = "Applied, waiting for the printer...";
+            if (!await waitForSlotToSettle(JSON.parse(this.dataset.ids), result.sent)) {
+                document.querySelector("#error").innerText = SETTLE_TIMEOUT_MSG;
             }
             showFilamentSlots();
             if (typeof postApplyCleanup === 'function') postApplyCleanup();

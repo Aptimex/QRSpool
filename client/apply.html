@@ -115,10 +115,18 @@
                 return;
             }
             const origText = applyBtn.innerText;
-            applyBtn.innerText = "Applying, please wait 5-10 seconds...";
+            applyBtn.innerText = "Applying...";
             applyBtn.disabled = true;
+            document.querySelector("#error").innerText = "";
 
             let result = await setFilamentSlotFromTag(activeSlotIDsJSON);
+            let settled = false;
+            if (!result.error) {
+                // Accepted by the printer; wait for it to take effect before
+                // reporting success, so a refresh shows the new values.
+                applyBtn.innerText = "Applied, waiting for the printer...";
+                settled = await waitForSlotToSettle(JSON.parse(activeSlotIDsJSON), result.sent);
+            }
             applyBtn.disabled = false;
             applyBtn.innerText = origText;
             if (result.error) {
@@ -127,12 +135,12 @@
                 return;
             }
 
-            // Brief success message
+            // Brief success (or unconfirmed) message
             statusEl.style.transition = "";
             statusEl.style.opacity = "1";
-            statusEl.style.color = "green";
+            statusEl.style.color = settled ? "green" : "#ca8a04";
             statusEl.style.fontWeight = "bold";
-            statusEl.innerText = "Applied successfully!";
+            statusEl.innerText = settled ? "Applied successfully!" : SETTLE_TIMEOUT_MSG;
             setTimeout(() => {
                 statusEl.style.transition = "opacity 1s";
                 statusEl.style.opacity = "0";
@@ -228,6 +236,13 @@
                     slotObj.displayQuick(document.querySelector("#filamentSlotsQuick"));
                     slotObj.display(document.querySelector("#filamentSlots"));
                 });
+
+                // Issues the server notices that may affect future operations come here
+                if (slotData.warning) {
+                    errorBox.innerText = slotData.warning;
+                    errorParent.classList.remove("alert-info", "collapse");
+                    errorParent.classList.add("alert-warning", "collapse.show");
+                }
 
                 if (activeSlotIDsJSON != null && !scannedSlotResolved) {
                     document.getElementById("selectedSlotName").innerText = "Could not resolve slot name from printer data";

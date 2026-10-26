@@ -4,17 +4,18 @@ from flask_basicauth import BasicAuth
 import json
 import bambu
 import mqtt
-import time
-from threading import Timer
+from threading import Timer, Lock
 from base64 import b64encode, b64decode
 
-from configs.config_loader import AUTH_USER, AUTH_PASS, INACTIVITY_TIMEOUT, PRINTERS
+from configs.config_loader import (
+    AUTH_USER, AUTH_PASS, INACTIVITY_TIMEOUT, PRINTERS, uses_custom_backend,
+)
 
 app = Flask(__name__)
 CORS(app) # allow CORS for all domains on all routes.
 # CORS(app, origins=["http://localhost:3000"]) # Allow CORS from specific domains for better security
 
-SERVER_VERSION = "0.6.0"
+SERVER_VERSION = "0.8.0"
 
 app.config['BASIC_AUTH_USERNAME'] = AUTH_USER
 app.config['BASIC_AUTH_PASSWORD'] = AUTH_PASS
@@ -22,6 +23,7 @@ basic_auth = BasicAuth(app)
 
 CONNECTED = False
 T: Timer = None
+_CONN_LOCK = Lock()
 
 BASIC_AUTH = None
 
@@ -30,7 +32,7 @@ _ALL_PRINTERS: dict = {}
 for _i, _cfg in enumerate(PRINTERS):
     _name = _cfg.get("name") or _cfg.get("ip", f"Printer {_i+1}")
     if _name not in _ALL_PRINTERS:
-        _backend = mqtt if _cfg.get("new_dev_mode") else bambu
+        _backend = mqtt if uses_custom_backend(_cfg) else bambu
         _ALL_PRINTERS[_name] = (_backend, _cfg)
 
 # Initialize the active backend to the first printer
@@ -52,26 +54,71 @@ def _find_printer_by_name(name: str):
 
 
 def connect():
-    global CONNECTED, T
+    """Connect to the active printer if needed, and restart the idle countdown.
 
-    if CONNECTED:
-        return
-    _current_backend.connect()
-    CONNECTED = True
-    time.sleep(3)
+    Returns an error dict if the printer could not be reached, else None.
+    """
+    global CONNECTED
 
-    if INACTIVITY_TIMEOUT > 0:
-        T = Timer(INACTIVITY_TIMEOUT, disconnect)
-        T.cancel()
-        T.start()
+    with _CONN_LOCK:
+        if not CONNECTED:
+            error = _current_backend.ensureConnected()
+            if error:
+                return error
+            CONNECTED = True
+
+        _arm_inactivity_timer()
+    return None
 
 
 def disconnect():
-    global CONNECTED, T
-    if not CONNECTED or not T:
+    """Drop the connection to the active printer."""
+    with _CONN_LOCK:
+        _disconnect_locked()
+
+
+def _disconnect_locked():
+    """Tear down the backend connection. Callers hold _CONN_LOCK."""
+    global CONNECTED
+
+    _cancel_inactivity_timer()
+    if not CONNECTED:
         return
-    T.cancel()
+    try:
+        _current_backend.disconnect()
+    except Exception as e:
+        print(f"Error disconnecting from printer: {e}")
     CONNECTED = False
+
+
+def _arm_inactivity_timer():
+    """Start the idle countdown, replacing any timer already running. Callers hold _CONN_LOCK."""
+    global T
+
+    _cancel_inactivity_timer()
+    if INACTIVITY_TIMEOUT > 0:
+        timer = Timer(INACTIVITY_TIMEOUT, lambda: _on_inactivity_timeout(timer))
+        T = timer
+        timer.start()
+
+
+def _cancel_inactivity_timer():
+    """Stop the idle countdown if one is running. Callers hold _CONN_LOCK."""
+    global T
+
+    if T is not None:
+        T.cancel()
+        T = None
+
+
+def _on_inactivity_timeout(timer: Timer):
+    """The idle countdown expired: disconnect, unless it was already re-armed."""
+    with _CONN_LOCK:
+        if T is not timer:
+            # A request re-armed the countdown (or switched printers) while this callback waited for the lock. 
+            # The connection is in use again.
+            return
+        _disconnect_locked()
 
 def makeError(msg):
     print(f"Error: {msg}")
@@ -178,7 +225,9 @@ def printerState():
 @app.route("/slots")
 @basic_auth.required
 def getSlots():
-    connect()
+    error = connect()
+    if error:
+        return jsonify(error)
     try:
         p = _current_backend.getSlots()
     except Exception as e:
@@ -189,7 +238,7 @@ def getSlots():
 @app.route("/activePrinter", methods=['GET', 'PUT', 'POST'])
 @basic_auth.required
 def activePrinter():
-    global CONNECTED, T, _current_backend, _current_cfg
+    global _current_backend, _current_cfg
 
     if request.method == 'GET':
         return jsonify({"name": _current_backend.CURRENT_PRINTER_NAME})
@@ -214,18 +263,15 @@ def activePrinter():
 
     new_backend, new_cfg = _ALL_PRINTERS[printer_name]
 
-    # Tear down current connection before switching
-    if T:
-        T.cancel()
-        T = None
-    if CONNECTED:
-        _current_backend.disconnect()
-        CONNECTED = False
+    # Tear down the old printer's connection before switching
+    disconnect()
 
     _current_backend = new_backend
     _current_cfg = new_cfg
     _current_backend.setCurrentPrinter(_current_cfg, printer_name)
-    connect()
+    error = connect()
+    if error:
+        return makeError(f"Switched to '{printer_name}' but could not connect: {error['error']}")
     return jsonify({"name": printer_name})
 
 
@@ -240,23 +286,23 @@ def setFilament():
         print(e)
         return makeError(str(e))
 
-    connect()
+    error = connect()
+    if error:
+        return makeError(error["error"])
     #print(fData.__dict__)
     good, result = _current_backend.setFilament(fData.amsID, fData.slotID, fData.colorHex, fData.brand, fData.type, fData.minTemp, fData.maxTemp, fData.colorName)
 
     if not good:
         return makeError(result)
 
-    # For some reason the printer won't return changed AMS data unless a new connection is established, so proactively disconnect
-    disconnect()
-
-    # Takes ~5s for new filament change to take effect, so proactively wait
-    time.sleep(5)
+    # A 200 here means the printer accepted the command, not that it has finished applying it; that usually takes 5-10 seconds
     return jsonify({"success": result})
 
 @app.route("/reconnect")
 @basic_auth.required
 def reconnect():
     disconnect()
-    connect()
+    error = connect()
+    if error:
+        return makeError(error["error"])
     return jsonify({"info": "reconnect triggered"})
